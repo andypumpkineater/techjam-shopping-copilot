@@ -32,6 +32,7 @@ or TechnicalScore.
 - Respect the 10-turn protocol.
 - Do not assume final judging has network access.
 - Report model/token/cost information honestly.
+- Never hard-code public sample IDs, target mappings, evaluator-generated hidden fields, or public-set-specific simulator behavior to inflate local scores.
 
 # Engineering Rules
 
@@ -45,6 +46,8 @@ or TechnicalScore.
 - No new dependency without justification.
 - Prefer reproducible/offline approaches when competitive.
 - Never claim improvement without evaluator evidence.
+- Never commit or push unless explicitly instructed by the human.
+- For read-only tasks, the expected result is zero repository diff; verify with `git status` and `git diff`.
 
 # File Boundaries
 

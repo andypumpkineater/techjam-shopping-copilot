@@ -6,10 +6,9 @@ M0 — Operational readiness and AI collaboration workflow
 - Python 3.11 virtual environment at `.venv`
 - official catalog downloaded and checksum verified
 - official evaluator successfully reproduced
-- current branch: dev
 - upstream: official TechJam repository
 - origin: our public submission repository
-
+- current branch: dev
 # Current Best System
 Official weak BM25 starter (`starter/agent.py`, unmodified).
 

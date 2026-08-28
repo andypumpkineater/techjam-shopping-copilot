@@ -5,6 +5,11 @@ Record negative results too.
 Do not silently delete failed experiments.
 
 ## E000 — Official Weak BM25 Baseline
+Files Changed:
+None.
+
+Decision:
+REFERENCE BASELINE
 
 Status: BASELINE
 
@@ -36,8 +41,6 @@ Observations:
 - Boundary has zero hits.
 - Baseline does not use clarification, conversation history, user profile, or reranking.
 
-Decision:
-REFERENCE BASELINE
 
 Next:
 No experiment selected yet.
