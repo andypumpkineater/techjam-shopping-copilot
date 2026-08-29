@@ -20,6 +20,23 @@ Scenario metrics (buying / browsing / intent_override / boundary) are reported
 separately for HitRate@10, MRR, and MTTC only — no separate scenario Efficiency
 or TechnicalScore.
 
+# Reference Document Hierarchy
+
+- Authoritative / executable spec (source of truth for scoring and interface
+  behavior): `docs/competition_specification.md`, `docs/agent_api_contract.json`,
+  `docs/evaluation_config.json`, and `evaluator/local_evaluator.py`. When in
+  doubt, the evaluator code wins.
+- `docs/sources/TRACK4_PROBLEM_STATEMENT.md` is a vision-level problem
+  statement (directional goals: dual-track routing, hybrid/LLM semantic
+  ranking, dynamic context programming, etc.). It is **not** an executable
+  spec and does not define scoring. Its "Coverage / Precision / Efficiency"
+  language maps loosely to HitRate@10 / MRR / MTTC but is not a formula
+  source — use the Official Metrics section above instead.
+- If the two documents appear to disagree, the operational spec + evaluator
+  behavior always take precedence for anything affecting `TechnicalScore`.
+  Treat the problem statement only as design inspiration for architecture
+  and direction, never as a scoring or interface reference.
+
 # Hard Safety Rules
 
 - Never modify evaluator code.

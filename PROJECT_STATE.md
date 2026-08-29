@@ -27,6 +27,15 @@ Scenario metrics:
 - intent_override: HitRate@10 0.133333, MRR 0.104167, MTTC 10.066667
 - boundary: HitRate@10 0.0, MRR 0.0, MTTC 11.0
 
+# Reference Documents
+- `docs/sources/TRACK4_PROBLEM_STATEMENT.md` — vision-level problem statement
+  (directional only: dual-track routing, hybrid/LLM semantic ranking, dynamic
+  context programming). Not authoritative for scoring or interface behavior.
+- Authoritative scoring/interface spec: `docs/competition_specification.md`,
+  `docs/agent_api_contract.json`, `docs/evaluation_config.json`,
+  `evaluator/local_evaluator.py`.
+- See CLAUDE.md → "Reference Document Hierarchy" for the precedence rule.
+
 # Current Architecture
 
 Only describes the existing starter:
