@@ -25,6 +25,17 @@ _DOMINANT_ROOT_THRESHOLD = 0.99
 PRIMARY_SLOTS = 7
 INSURANCE_SLOTS = 3
 
+# E002 — fixed, deterministic, label-free clarification sequence, indexed by
+# turn (1-based). One pass over the contract-legal attributes for which the
+# published evaluator's classify_constraint() can disclose a constraint,
+# followed by one "other" catch-all. Turns 9-10 ask nothing: repeating an
+# attribute or reusing "other" would be a repeated-question policy, deferred
+# to later dialogue experiments. Frozen before evaluation; not reordered.
+_ASK_SEQUENCE: tuple[str | None, ...] = (
+    "material", "color", "size", "style", "budget", "feature", "use_case", "other",
+    None, None,
+)
+
 
 def _text(value: object) -> str:
     if value is None:
@@ -282,9 +293,10 @@ class Agent:
                         seen.add(parent_asin)
                 ids = ids[:top_k]
             recommendations = [{"parent_asin": parent_asin} for parent_asin in ids]
+        ask_attribute = _ASK_SEQUENCE[turn - 1] if 1 <= turn <= len(_ASK_SEQUENCE) else None
         return {
             "message": "Here are the closest matches I found.",
-            "ask_attribute": None,
+            "ask_attribute": ask_attribute,
             "recommendations": recommendations,
             "usage": {"prompt_tokens": 0, "completion_tokens": 0},
         }
