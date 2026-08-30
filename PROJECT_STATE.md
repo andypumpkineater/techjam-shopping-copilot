@@ -10,22 +10,33 @@ M3 — Retrieval
 - origin: our public submission repository
 - current branch: dev
 # Current Best System
-Official weak BM25 starter (`starter/agent.py`, unmodified).
+E001 — Category-aware lexical retrieval with catalog-derived relaxation and
+a global lexical insurance route (`starter/agent.py`, modified). See
+EXPERIMENTS.md for full record.
 
 # Current Best Metrics
 
 Overall (sample_count 200):
-- HitRate@10: 0.125
-- MRR: 0.068034
-- MTTC: 9.81
-- Efficiency: 0.119
-- TechnicalScore: 0.10671
+- HitRate@10: 0.160
+- MRR: 0.066704
+- MTTC: 9.46
+- Efficiency: 0.154
+- TechnicalScore: 0.130811
 
 Scenario metrics:
-- buying: HitRate@10 0.2375, MRR 0.126508, MTTC 8.625
-- browsing: HitRate@10 0.025, MRR 0.004514, MTTC 10.75
-- intent_override: HitRate@10 0.133333, MRR 0.104167, MTTC 10.066667
+- buying: HitRate@10 0.275, MRR 0.136577, MTTC 8.25
+- browsing: HitRate@10 0.075, MRR 0.012996, MTTC 10.25
+- intent_override: HitRate@10 0.133333, MRR 0.045833, MTTC 10.066667
 - boundary: HitRate@10 0.0, MRR 0.0, MTTC 11.0
+
+E000 baseline (for reference): HitRate@10 0.125, MRR 0.068034, MTTC 9.81,
+Efficiency 0.119, TechnicalScore 0.10671. Full delta and scenario
+comparison in EXPERIMENTS.md.
+
+Known E001 regression: overall MRR decreased slightly, and intent_override
+MRR decreased materially while its HitRate remained flat. Not repaired
+inside E001 by design; carried forward as a ranking / conversation-state
+problem for later milestones. See EXPERIMENTS.md for detail.
 
 # Reference Documents
 - `docs/sources/TRACK4_PROBLEM_STATEMENT.md` — vision-level problem statement
@@ -40,8 +51,11 @@ Scenario metrics:
 
 Two layers: what's running, and what's designed but not yet implemented.
 
-Running (`starter/agent.py`, unmodified):
+Running (`starter/agent.py`, modified per E001):
 - in-memory SQLite FTS5/BM25 index over the full catalog
+- catalog-derived category index (full / last2 / last1 / segment
+  granularities) with taxonomy-consistent relaxation and a small
+  always-reachable global lexical insurance route (E001, KEEP)
 - stateless across turns
 - current-message-only retrieval (no conversation history)
 - `user_profile` ignored
@@ -50,13 +64,14 @@ Running (`starter/agent.py`, unmodified):
 - no multi-turn state
 
 Designed, not yet implemented — Architecture v1.1, finalized at M2:
-`docs/M2_SYSTEM_DESIGN.md`. Key decisions: category-scoped lexical retrieval as the primary route,
-with size-triggered relaxation (path → last-2 → last-1 → segment → global) for
-under-generality, PLUS a small always-reachable global lexical insurance route
-to catch a wrong-but-large scope that relaxation cannot detect (reserved-slot
-merge, no RRF). Intent override defaults to superseding only conflicting
-evidence (category included, not privileged). Full E001–E006 roadmap and
-milestone ownership boundaries (M3 Retrieval / M4 Ranking / M5 Conversation
+`docs/M2_SYSTEM_DESIGN.md`. E001 implements the Retriever component's
+category-scoped primary route, relaxation, and insurance route as described
+there. Remaining, not yet implemented: clarification channel and adaptive
+attribute selection, conversation-history accumulation and intent-override
+supersede semantics, and constraint-coverage reranking. Intent override
+will default to superseding only conflicting evidence (category included,
+not privileged) once implemented. Full E001–E006 roadmap and milestone
+ownership boundaries (M3 Retrieval / M4 Ranking / M5 Conversation
 Intelligence / M6 Ablation / M7 Submission) are in that document.
 
 # Known Baseline Weaknesses
@@ -76,14 +91,17 @@ Evidence only:
 - baseline reproducible
 
 # Current Task
-E001 — Category-scoped lexical retrieval with graceful relaxation and a small
-always-reachable global lexical insurance route. Retrieval only: no
-clarification, state, or reranking changes. Not yet implemented in
-`starter/agent.py` (working tree is currently clean / matches E000).
+E001 — Category-aware lexical retrieval with graceful catalog-derived
+relaxation and a small always-reachable global lexical insurance route is
+complete and KEPT (see EXPERIMENTS.md for full record and rationale).
+Next planned experiment: E002 — Clarification Channel (emit a non-null
+`ask_attribute` under a fixed, label-free rule; retrieval and ranking
+frozen at E001).
 
 # Next Milestone
-M4 — Ranking (constraint-coverage reranking, field weighting), after E001 is
-implemented and evaluated.
+M3 continues with E002 — Clarification Channel, then E003 — Evidence
+Accumulation. M4 — Ranking (constraint-coverage reranking, field
+weighting) follows once the M3 experiment set (E001–E003) is complete.
 
 # Open Questions
 

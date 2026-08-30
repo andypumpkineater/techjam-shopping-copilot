@@ -41,7 +41,82 @@ Observations:
 - Boundary has zero hits.
 - Baseline does not use clarification, conversation history, user profile, or reranking.
 
+## E001 — Category-aware lexical retrieval
+
+Status: KEEP
+
+Hypothesis:
+Using category evidence from the runtime user message as a strong lexical
+retrieval signal, while retaining graceful catalog-derived relaxation and
+a small global lexical insurance route, improves retrieval performance
+over the official unscoped BM25 baseline.
+
+Files Changed:
+- starter/agent.py
+
+Evaluation Command:
+python -m evaluator.local_evaluator
+
+E000:
+HitRate@10: 0.125
+MRR: 0.068034
+MTTC: 9.81
+Efficiency: 0.119
+TechnicalScore: 0.106710
+
+E001:
+HitRate@10: 0.160
+MRR: 0.066704
+MTTC: 9.46
+Efficiency: 0.154
+TechnicalScore: 0.130811
+
+Delta:
+HitRate@10: +0.035
+MRR: -0.001330
+MTTC: -0.35 (earlier first hits)
+Efficiency: +0.035
+TechnicalScore: +0.024101
+
+Scenario results:
+
+buying:
+HR@10 0.275
+MRR 0.136577
+MTTC 8.25
+
+browsing:
+HR@10 0.075
+MRR 0.012996
+MTTC 10.25
+
+intent_override:
+HR@10 0.133333
+MRR 0.045833
+MTTC 10.066667
+
+boundary:
+HR@10 0.0
+MRR 0.0
+MTTC 11.0
+
+Decision rationale:
+KEEP because E001 materially improved TechnicalScore, HitRate@10, and
+first-hit timing while remaining within the retrieval-only experiment
+scope.
+
+Known regression:
+Overall MRR decreased slightly, and intent_override MRR decreased
+materially while its HitRate remained flat. Do not tune E001 to repair
+this. Carry the regression forward as a ranking / conversational-state
+problem for later milestones.
+
+Correctness fix:
+After the first evaluator run, the reserved-slot merge was fixed so that
+if the primary route under-fills, the global BM25 route backfills to
+top_k. The official evaluator was rerun on the final code and all overall
+and scenario metrics were identical. The fix did not change evaluated
+metrics.
 
 Next:
-No experiment selected yet.
-System design has not started.
+E002 — Clarification Channel.
