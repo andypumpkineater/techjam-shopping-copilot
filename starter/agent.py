@@ -36,6 +36,20 @@ _ASK_SEQUENCE: tuple[str | None, ...] = (
     None, None,
 )
 
+# E003 — fixed prefixes of the published evaluator's information-free/
+# no-preference customer_reply templates (evaluator/local_evaluator.py).
+# Attribute-independent prefixes only; no attribute-name interpolation
+# needed. Used to exclude boilerplate from persisted evidence.
+_INFO_FREE_PREFIXES = (
+    "Those options are not quite right yet",
+    "I don't have a preference for ",
+    "I don't have an additional preference for ",
+)
+
+
+def _is_information_free(message: str) -> bool:
+    return message.startswith(_INFO_FREE_PREFIXES)
+
 
 def _text(value: object) -> str:
     if value is None:
@@ -78,7 +92,7 @@ class Agent:
     def __init__(self, catalog_path: str | Path = "data/catalog.jsonl") -> None:
         self.catalog_path = Path(catalog_path)
         self.connection = sqlite3.connect(":memory:")
-        self._sessions: set[str] = set()
+        self._sessions: dict[str, list[str]] = {}
         self._level_vocab: dict[str, list[tuple[frozenset[str], str]]] = {}
         self._build_index()
 
@@ -237,7 +251,7 @@ class Agent:
 
     def reset(self, session_id: str, user_profile: dict) -> None:
         # The profile is anonymized and may be used for personalization.
-        self._sessions.add(session_id)
+        self._sessions[session_id] = []
 
     def respond(
         self,
@@ -248,7 +262,10 @@ class Agent:
     ) -> dict:
         if session_id not in self._sessions:
             raise RuntimeError("reset must be called before respond")
-        unique_terms = list(dict.fromkeys(_terms(user_message)))[:40]
+        if turn == 1 or not _is_information_free(user_message):
+            self._sessions[session_id].append(user_message)
+        accumulated_text = " ".join(self._sessions[session_id])
+        unique_terms = list(dict.fromkeys(_terms(accumulated_text)))[:40]
         expression = " OR ".join(f'"{term}"' for term in unique_terms)
         if not expression:
             recommendations: list[dict] = []

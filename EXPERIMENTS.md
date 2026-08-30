@@ -231,3 +231,133 @@ Important limitations:
 Next hypothesis:
 E003 will test whether accumulating legitimate runtime evidence across
 turns improves further over E002.
+
+## E003 — Meaningful Multi-turn Evidence Accumulation
+
+Status: KEEP
+
+Hypothesis:
+Persisting meaningful legitimate runtime evidence across turns, while
+deterministically excluding published information-free reply templates,
+improves retrieval over E002's current-message-only behavior.
+
+Experimental change:
+
+E003 introduced minimal per-session append-only runtime evidence state.
+
+Admission policy:
+- Turn 1 is always retained.
+- Later user messages are retained unless they begin with one of the three
+  published information-free/no-preference prefixes.
+- Admitted messages are stored raw and append-only.
+- No override/conflict resolution is performed.
+
+Accumulated query:
+- admitted messages are joined oldest to newest;
+- the existing E001/E002 `_terms()` logic is applied;
+- existing lexical deduplication is unchanged;
+- existing 40-term cap is unchanged.
+
+Important:
+E003 tests meaningful evidence accumulation with deterministic exclusion of
+published information-free replies.
+
+Do NOT describe E003 as raw conversation-history concatenation alone.
+
+Frozen behavior:
+- E001 retrieval otherwise unchanged.
+- E002 fixed clarification sequence unchanged.
+- no reranking.
+- no adaptive clarification.
+- no intent-override semantics.
+- no boundary-specific behavior.
+- no recency weighting.
+- no query-term-cap changes.
+
+Files Changed:
+- starter/agent.py
+
+E002 baseline:
+
+HitRate@10: 0.555
+MRR: 0.244496
+MTTC: 7.16
+Efficiency: 0.384
+TechnicalScore: 0.427649
+
+E003:
+
+HitRate@10: 0.835
+MRR: 0.498681
+MTTC: 5.01
+Efficiency: 0.599
+TechnicalScore: 0.686904
+
+Delta vs E002:
+
+HitRate@10: +0.280
+MRR: +0.254185
+MTTC: -2.15 (better / earlier first hits)
+Efficiency: +0.215
+TechnicalScore: +0.259255
+
+Scenario metrics:
+
+buying:
+HR@10: 0.8625
+MRR: 0.485913
+MTTC: 4.3375
+
+browsing:
+HR@10: 0.825
+MRR: 0.456205
+MTTC: 5.3125
+
+intent_override:
+HR@10: 0.8
+MRR: 0.630278
+MTTC: 5.2
+
+boundary:
+HR@10: 0.8
+MRR: 0.545833
+MTTC: 7.4
+
+Decision:
+KEEP.
+
+Interpretation:
+
+The experiment strongly supports preserving meaningful runtime evidence
+across turns rather than retrieving from each clarification reply in
+isolation.
+
+All overall metrics improved materially.
+
+The intent_override bucket also improved substantially in this public run,
+despite append-only stale/conflicting evidence being structurally possible.
+
+Do NOT conclude that override handling is unnecessary.
+
+The correct conclusion is only that, on this evaluation, the benefit of
+preserving multi-turn evidence outweighed the harm from unresolved stale
+or conflicting evidence.
+
+Known limitations:
+
+1. Append-only stale/conflicting evidence.
+   An intent override can leave both old and new intent terms in the query.
+
+2. No evidence supersession or conflict resolution.
+
+3. Oldest-first 40-term cap.
+   Later evidence may be truncated once 40 unique lexical terms are reached.
+
+Do NOT infer from MTTC that the term cap was rarely reached.
+This evaluation does not establish how often truncation affected queries.
+
+4. The information-free filter is based on published fixed reply prefixes,
+   not semantic no-preference understanding.
+
+No public-target-specific tuning, ground-truth access, scenario-specific
+logic, or hidden-field access was used by the agent.
