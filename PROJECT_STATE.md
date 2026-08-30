@@ -1,5 +1,5 @@
 # Current Milestone
-M0 — Operational readiness and AI collaboration workflow
+M3 — Retrieval
 
 # Environment
 - macOS
@@ -38,7 +38,9 @@ Scenario metrics:
 
 # Current Architecture
 
-Only describes the existing starter:
+Two layers: what's running, and what's designed but not yet implemented.
+
+Running (`starter/agent.py`, unmodified):
 - in-memory SQLite FTS5/BM25 index over the full catalog
 - stateless across turns
 - current-message-only retrieval (no conversation history)
@@ -46,6 +48,16 @@ Only describes the existing starter:
 - no clarification questions (`ask_attribute` always `null`)
 - no reranking
 - no multi-turn state
+
+Designed, not yet implemented — Architecture v1.1, finalized at M2:
+`docs/M2_SYSTEM_DESIGN.md`. Key decisions: category-scoped lexical retrieval as the primary route,
+with size-triggered relaxation (path → last-2 → last-1 → segment → global) for
+under-generality, PLUS a small always-reachable global lexical insurance route
+to catch a wrong-but-large scope that relaxation cannot detect (reserved-slot
+merge, no RRF). Intent override defaults to superseding only conflicting
+evidence (category included, not privileged). Full E001–E006 roadmap and
+milestone ownership boundaries (M3 Retrieval / M4 Ranking / M5 Conversation
+Intelligence / M6 Ablation / M7 Submission) are in that document.
 
 # Known Baseline Weaknesses
 
@@ -64,10 +76,14 @@ Evidence only:
 - baseline reproducible
 
 # Current Task
-Complete M0 by establishing persistent AI memory, Git discipline, and experiment logging.
+E001 — Category-scoped lexical retrieval with graceful relaxation and a small
+always-reachable global lexical insurance route. Retrieval only: no
+clarification, state, or reranking changes. Not yet implemented in
+`starter/agent.py` (working tree is currently clean / matches E000).
 
 # Next Milestone
-M1 — Independently understand and explain evaluator and baseline behavior.
+M4 — Ranking (constraint-coverage reranking, field weighting), after E001 is
+implemented and evaluated.
 
 # Open Questions
 
