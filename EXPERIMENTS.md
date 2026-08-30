@@ -361,3 +361,169 @@ This evaluation does not establish how often truncation affected queries.
 
 No public-target-specific tuning, ground-truth access, scenario-specific
 logic, or hidden-field access was used by the agent.
+
+## E004 — Coverage-aware Lightweight Reranking
+
+Status: KEEP
+
+Milestone:
+M4 — Ranking
+
+Hypothesis:
+Among the exact candidates already returned by E003, candidates covering
+more distinct accumulated evidence units should rank above candidates that
+match fewer evidence units, improving MRR without changing candidate
+membership.
+
+Experimental change:
+
+E004 introduced a pure same-set reranking pass over the final E003
+recommendation ids.
+
+One admitted E003 message = one evidence unit.
+
+Evidence terms:
+- existing `_terms(message)`
+- empty units ignored
+
+Candidate product terms:
+existing `_terms()` over the concatenation of:
+- title
+- categories
+- features
+- details
+- store
+- description
+
+Coverage:
+
+coverage(P) =
+number of evidence units whose term set has a non-empty intersection with
+P's product-term set.
+
+Each evidence unit receives binary covered/not-covered credit.
+
+Ranking:
+1. coverage descending
+2. original E003 order preserved for ties via stable sorting
+
+No:
+- IDF
+- field weights
+- BM25 blending
+- overlap thresholds
+- semantic parsing
+- candidate-pool expansion
+- candidate replacement
+- caching
+
+Candidate membership was intentionally frozen.
+
+Frozen behavior:
+- E001 retrieval unchanged
+- E002 clarification sequence unchanged
+- E003 evidence admission and accumulation unchanged
+- no override semantics
+- no boundary-specific logic
+- no adaptive clarification
+
+Files Changed:
+- starter/agent.py
+
+E003 baseline:
+
+HitRate@10: 0.835
+MRR: 0.498681
+MTTC: 5.01
+Efficiency: 0.599
+TechnicalScore: 0.686904
+
+E004:
+
+HitRate@10: 0.835
+MRR: 0.518149
+MTTC: 5.01
+Efficiency: 0.599
+TechnicalScore: 0.692745
+
+Delta vs E003:
+
+HitRate@10: +0.000000
+MRR: +0.019468
+MTTC: +0.00
+Efficiency: +0.000
+TechnicalScore: +0.005841
+
+Scenario metrics:
+
+buying:
+HR@10: 0.8625
+MRR: 0.494782
+MTTC: 4.3375
+
+browsing:
+HR@10: 0.825
+MRR: 0.474727
+MTTC: 5.3125
+
+intent_override:
+HR@10: 0.8
+MRR: 0.677302
+MTTC: 5.2
+
+boundary:
+HR@10: 0.8
+MRR: 0.575
+MTTC: 7.4
+
+Decision:
+KEEP.
+
+Mechanism interpretation:
+
+HitRate@10, MTTC, and Efficiency remained exactly unchanged while MRR
+improved.
+
+This is consistent with E004 behaving as the intended same-set reranker:
+candidate membership stayed fixed while ordering improved.
+
+The TechnicalScore increase is attributable to the MRR increase:
+0.3 * 0.019468 ~= 0.0058404, consistent with the observed +0.005841.
+
+Do NOT claim coverage-aware ranking in general is optimal.
+
+This experiment validates only the specific plain, unweighted,
+binary-per-evidence-unit lexical coverage rule tested here.
+
+Known limitations:
+
+1. Generic-token false coverage.
+   A candidate may receive credit through an attribute/scaffold word without
+   matching the actual disclosed value.
+
+2. Long-text overcoverage.
+   Verbose product text has more opportunities for lexical intersection.
+
+3. Scaffold-token contamination.
+   Useful disclosure messages still contain conversational scaffolding that
+   may contribute spurious lexical overlap.
+
+4. Common / one-token evidence units may provide nearly constant coverage
+   across candidates.
+
+5. No IDF, field weighting, semantic constraint parsing, or value-specific
+   matching.
+
+6. Performance:
+   `_product_terms()` currently performs uncached per-candidate SQL lookup
+   and tokenization. The official evaluator completed successfully, but the
+   run exceeded Claude Code's 120-second foreground Bash window and continued
+   in the background.
+
+Treat this as an engineering/performance limitation, not a ranking
+correctness failure.
+
+Smoke-test note:
+Two issues discovered during validation were bugs in the temporary test
+harness/fixtures, not in starter/agent.py. They were corrected before the
+official evaluator run; final smoke tests all passed.

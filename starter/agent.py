@@ -69,6 +69,14 @@ def _terms(text: str) -> list[str]:
     ]
 
 
+# E004 — one admitted E003 message is one evidence unit; its terms are the
+# same _terms() used for querying. Units that tokenize to nothing are
+# dropped rather than counted as trivially "covered" by everything.
+def _evidence_units(messages: list[str]) -> list[frozenset[str]]:
+    units = (frozenset(_terms(message)) for message in messages)
+    return [unit for unit in units if unit]
+
+
 def _category_keys(categories: list[str]) -> dict[str, str]:
     cleaned = [value.strip() for value in categories if value and value.strip()]
     if not cleaned:
@@ -249,6 +257,32 @@ class Agent:
         ).fetchall()
         return [str(row[0]) for row in rows]
 
+    def _product_terms(self, parent_asin: str) -> frozenset[str]:
+        row = self.connection.execute(
+            "SELECT title, categories, features, details, store, description "
+            "FROM products WHERE parent_asin = ?",
+            (parent_asin,),
+        ).fetchone()
+        if row is None:
+            return frozenset()
+        return frozenset(_terms(" ".join(str(value) for value in row)))
+
+    def _coverage_rerank(self, session_id: str, ids: list[str]) -> list[str]:
+        # E004 — reorder the exact E003 candidate set by how many admitted
+        # evidence units each candidate's indexed text overlaps (binary
+        # per-unit credit, no weights). Same set, same length; only order
+        # may change. Stable sort preserves E003's order on ties.
+        evidence_units = _evidence_units(self._sessions[session_id])
+        if not evidence_units:
+            return ids
+        coverage = {
+            parent_asin: sum(
+                1 for unit in evidence_units if self._product_terms(parent_asin) & unit
+            )
+            for parent_asin in ids
+        }
+        return sorted(ids, key=lambda parent_asin: -coverage[parent_asin])
+
     def reset(self, session_id: str, user_profile: dict) -> None:
         # The profile is anonymized and may be used for personalization.
         self._sessions[session_id] = []
@@ -309,6 +343,7 @@ class Agent:
                         ids.append(parent_asin)
                         seen.add(parent_asin)
                 ids = ids[:top_k]
+            ids = self._coverage_rerank(session_id, ids)
             recommendations = [{"parent_asin": parent_asin} for parent_asin in ids]
         ask_attribute = _ASK_SEQUENCE[turn - 1] if 1 <= turn <= len(_ASK_SEQUENCE) else None
         return {
