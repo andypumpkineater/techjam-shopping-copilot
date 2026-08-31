@@ -19,6 +19,13 @@ EXPERIMENTS.md for the full record); current best algorithm remains E006 +
 M6 memoization, and `starter/agent.py` has been restored to that code —
 the failed E007 change was discarded and E007's failure documentation
 committed; the working tree was clean before E008 preregistration began.
+E008 — Candidate-Local IDF-aware Reranking was likewise implemented,
+evaluated once, and REVERTED; its change was also discarded without being
+committed, so `starter/agent.py` is at the E006 + M6 code. R009 —
+Diagnostic / Research Infrastructure (2026-08-31) then added
+`tools/diagnostics/` and `docs/diagnostics/E006_M6_BASELINE.md` with **no
+runtime change**, reproducing the E006 + M6 baseline exactly. Current best
+algorithm remains E006 + M6.
 
 # Human Decision — Freeze Lifted (2026-08-31)
 
@@ -158,9 +165,14 @@ Thus the current best ranking behavior remains E004 coverage reranking
 with stable preservation of the incoming lexical/BM25 order on coverage
 ties (i.e. no secondary tiebreak signal beyond input order). Therefore
 current production/best code target remains E006 + M6 memoization
-unchanged; `starter/agent.py` has not yet been restored to that state
-after E008 (pending; the E008 code is still present awaiting revert — see
-note above regarding this same pattern after E007).
+unchanged, and `starter/agent.py` is at that code. The E008 change was
+discarded without being committed; the file is byte-identical to the M6
+commit `c8cc1e2` and contains no IDF-aware reranking. Verified during R009
+(2026-08-31) by code inspection, not by document: `git diff -- starter/
+agent.py` empty, `git diff c8cc1e2 HEAD -- starter/agent.py` empty,
+SHA-256 `8615fd21…45e3a67a`, no `idf`/`rarity`/`POOL_MULTIPLIER` symbols
+present, and `_coverage_rerank()` sorting on `-coverage` alone with no
+secondary rarity key.
 
 E007 remains REVERTED. E008 is now REVERTED. Do not yet declare algorithm
 experimentation frozen unless explicitly directed by the human; further
@@ -375,9 +387,9 @@ Decision — Freeze Lifted (2026-08-31)" above. E007 has been evaluated and
 REVERTED (see "E007 Outcome" above); current best algorithm remains E006.
 `starter/agent.py` has been restored to the pre-E007 (E006 + M6) code.
 M7 — Submission remains deferred; see "E008 Outcome (2026-08-31)" above:
-E008 has also been evaluated and REVERTED, and `starter/agent.py` still
-awaits restoration to E006 + M6 after E008, a separate not-yet-authorized
-step.
+E008 has also been evaluated and REVERTED, and `starter/agent.py` is at
+the E006 + M6 code (the E008 change was discarded without being
+committed). No restoration step is outstanding.
 
 # Known Baseline Weaknesses
 
@@ -484,12 +496,19 @@ A second post-v1.1 experiment, E008 — Candidate-Local IDF-aware Reranking,
 was preregistered, implemented, evaluated once, and REVERTED by human
 decision on 2026-08-31 (see "E008 Outcome (2026-08-31)" above and
 EXPERIMENTS.md for the full record); current best remains E006 + M6
-memoization, and `starter/agent.py` has not yet been restored to that code
-(pending; the E008 code is still present awaiting revert). M7 remains
-deferred pending that restoration, or the human directing otherwise.
-Algorithm development is not to be marked frozen again unless the human
-makes that decision, and further post-v1.1 experiments still require
-explicit human approval.
+memoization, and `starter/agent.py` is at that code (the E008 change was
+discarded without being committed — verified during R009, see "E008
+Outcome" above). No restoration step is outstanding. M7 remains deferred
+pending the human's direction. Algorithm development is not to be marked
+frozen again unless the human makes that decision, and further post-v1.1
+experiments still require explicit human approval.
+
+R009 — Diagnostic / Research Infrastructure (2026-08-31) has since been
+completed: `tools/diagnostics/` (D-1 candidate oracle, D-2 perfect-reranker
+bounds, D-3 counterfactual bench, D-5 paired session delta, invariant
+checker) and `docs/diagnostics/E006_M6_BASELINE.md`. R009 changed no
+runtime code and reproduced the E006 + M6 baseline exactly. See
+EXPERIMENTS.md "R009".
 
 # Open Questions
 
