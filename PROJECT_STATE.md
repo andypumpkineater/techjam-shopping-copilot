@@ -24,8 +24,11 @@ evaluated once, and REVERTED; its change was also discarded without being
 committed, so `starter/agent.py` is at the E006 + M6 code. R009 —
 Diagnostic / Research Infrastructure (2026-08-31) then added
 `tools/diagnostics/` and `docs/diagnostics/E006_M6_BASELINE.md` with **no
-runtime change**, reproducing the E006 + M6 baseline exactly. Current best
-algorithm remains E006 + M6.
+runtime change**, reproducing the E006 + M6 baseline exactly. E010 —
+Proximity-aware Reranking was then preregistered, implemented, evaluated
+once, and **KEPT** by human decision on 2026-08-31 (see "E010 Outcome"
+below). Current best algorithm is now **E010 + E006 + M6**, and
+`starter/agent.py` carries the E010 change.
 
 # Human Decision — Freeze Lifted (2026-08-31)
 
@@ -178,6 +181,94 @@ E007 remains REVERTED. E008 is now REVERTED. Do not yet declare algorithm
 experimentation frozen unless explicitly directed by the human; further
 post-v1.1 experiments still require explicit human approval.
 
+## E010 Outcome (2026-08-31)
+
+Status: **KEEP** (human decision, 2026-08-31). Full record: EXPERIMENTS.md
+"E010 — Proximity-aware Reranking". Preregistration was committed in
+`5035018` before `starter/agent.py` was touched.
+
+E010 is the third human-approved post-Architecture-v1.1 experiment, after
+E007 and E008. Architecture v1.1 (`docs/M2_SYSTEM_DESIGN.md`) remains
+historical and unchanged and still originally ends at E006. This does not
+rewrite E007 or E008 history: both remain REVERTED.
+
+Tested hypothesis: every ranking signal used to date is a bag of words and
+is invariant to word order. With candidate membership held exactly frozen,
+ranking by the length of the longest contiguous n-gram of an evidence unit
+(n in [2, 4], `N_MAX = 4` preregistered and frozen) appearing in the
+candidate's own normalized token stream — with E004 coverage demoted from
+primary key to tiebreak — improves ranking quality.
+
+E006 + M6 baseline (prior best):
+HitRate@10 0.835, MRR 0.522579, MTTC 4.515, Efficiency 0.6485,
+TechnicalScore 0.703974. Runtime 73.4s.
+
+E010 result (new best):
+HitRate@10 0.835, MRR 0.653149, MTTC 4.515, Efficiency 0.6485,
+TechnicalScore 0.743145. Runtime 101.4s.
+
+Delta vs E006 + M6: HitRate@10 +0.000000, MRR **+0.130570**, MTTC +0.000,
+Efficiency +0.0000, TechnicalScore **+0.039171**, runtime +28.0s (~1.39x
+slower, reported not optimized — the preregistration forbade bundling a
+performance experiment).
+
+Scenario MRR deltas: buying +0.152699, browsing +0.128859, boundary
++0.125000, intent_override +0.077976. All four buckets improved. All four
+scenario HitRate@10 and MTTC values are bit-identical to E006.
+
+**Structural finding — E010 is a pure-MRR experiment by construction.**
+`_coverage_rerank()` receives exactly the ids that are returned (`ids` is
+already sliced to `ids[:top_k]` before the call). With pool depth frozen at
+10, reordering can only move the target *within* the returned ten, never
+across the top-10 boundary. HitRate@10, MTTC, and Efficiency are therefore
+necessarily unchanged, and TechnicalScore delta equals exactly
+`0.30 * MRR delta`. The preregistration had anticipated that `first_hit_turn`
+might change; it did not and could not. Consequently the correct ceiling for
+E010 is D-2's "perfect order, current top-10" bound (**+0.093726**), not
+D-3's `phrase_n4` counterfactual (+0.1096), which requires pool depth 100.
+E010 captured 41.8% of its actual ceiling. The D-3 figure was never used as
+a target, prediction, or success criterion.
+
+Validation: 27 mechanism smoke checks passed, including bit-identity of
+`_proximity_score()` with R009's D-3 `phrase_n4` scorer across 720
+(message-set, product) pairs and of `_product_stream()` with D-3's
+`normalized_text()` across 400 real products. The invariant check
+(`--expect ranking-only`) returned **PASS** over 200 sessions / 870 turns:
+candidate membership changed 0/870, `ask_attribute` changed 0/870, order
+changed 610/870 (mechanism strongly engaged), `first_hit_turn` changed in 0
+sessions. Because the trajectory is provably frozen, the offline trace
+predicted the official result bit-exactly before the evaluator was run.
+
+D-5 paired transition matrix (n=200): miss→hit 0, **hit→miss 0**, rank
+improved **53**, rank regressed **1**, unchanged 113, miss→miss 33. Scored
+rank 1 rises 82 → 112; ranks 9–10 fall 8 → 0. The single regression is
+`public_0080` (intent_override, rank 2 → 4), consistent with the known
+unresolved append-only-evidence limitation — a proximity match against a
+stale pre-override phrase can outrank the post-override target. One session,
+not a cluster.
+
+Key finding: within the candidate set the agent already returns, word-order
+proximity is a materially better ranking signal than bag-of-words overlap.
+This is the first signal dimension tested that was not already exhausted,
+and it is consistent with R009's diagnostic finding that every bag-of-words
+re-weighting lands within ±0.02. Do **not** conclude that `N_MAX = 4` is
+optimal (no other value was run officially), that proximity-first is the
+best key order (only the preregistered order was run), that deeper candidate
+pools would now pay off (E007 remains REVERTED and untested under this
+ranker), that intent override or boundary behavior is solved (neither
+received new logic), or that E008's conclusion is overturned (E008 rejected
+candidate-local IDF as a tiebreak *under* coverage; E010 replaces the
+primary key with a different signal class — the two are not in competition).
+
+**Most important open risk:** a rule keyed on contiguous n-grams is a priori
+more paraphrase-sensitive than the bag-of-words rule it replaced, and the
+public set cannot detect that. The D012 paraphrase stress test remains
+**unrun** and is now the highest-value next diagnostic.
+
+E007 remains REVERTED. E008 remains REVERTED. E010 is KEPT. Algorithm
+development is not frozen; further post-v1.1 experiments still require
+explicit human approval.
+
 # Environment
 - macOS
 - Python 3.11 virtual environment at `.venv`
@@ -187,6 +278,28 @@ post-v1.1 experiments still require explicit human approval.
 - origin: our public submission repository
 - current branch: dev
 # Current Best System
+
+E010 — Proximity-aware Reranking: a pure same-set reorder of the exact E006
+candidate ids by word-order proximity. For each admitted evidence unit (one
+E003 message = one unit, the E004 definition, but order-preserving), the
+candidate scores the length of the longest contiguous n-gram of that unit's
+token sequence, n in [2, `N_MAX = 4`], occurring in the candidate's own
+normalized, space-padded token stream (`_product_stream()`, the same six
+indexed fields and same `_terms()` tokenization as `_product_terms()`,
+memoized per Agent instance following the M6 pattern). Unit contributions
+sum; a unit with no matching n-gram contributes 0. Unigrams are excluded by
+construction — a single-token match is bag-of-words overlap, which E004's
+coverage already scores. `_coverage_rerank()` sorts on
+`(proximity DESC, coverage DESC, incoming lexical order stable)`, so E004
+coverage is retained but demoted from primary key to tiebreak. Candidate
+membership, pool depth, the 7/3/10 slot structure, BM25 weights, `_terms()`,
+`STOPWORDS`, category detection and relaxation, `_select_attribute()`,
+evidence admission, override handling, and candidate routing are all
+unchanged. Status: complete / KEEP. See EXPERIMENTS.md for full record.
+
+Prior best: E006 — Adaptive Catalog-Side Clarification (unchanged, still
+running underneath E010 — see "Current Architecture" below).
+
 E006 — Adaptive Catalog-Side Clarification: replaces E002's fixed,
 turn-indexed `ask_attribute` sequence with adaptive, catalog-side selection
 among five specific attributes (material, color, style, feature, use_case),
@@ -206,23 +319,36 @@ asked-attribute state controls only clarification selection — no retrieval,
 evidence, reranking, override, or boundary-specific behavior was added.
 Status: complete / KEEP. See EXPERIMENTS.md for full record.
 
-Prior best: E004 — Coverage-aware Lightweight Reranking (unchanged, still
-running underneath E006 — see "Current Architecture" below).
+Prior best before E006: E004 — Coverage-aware Lightweight Reranking (its
+coverage count is unchanged and still running underneath E010, demoted to
+the secondary sort key — see "Current Architecture" below).
 
 # Current Best Metrics
 
-Overall (sample_count 200):
+Overall (sample_count 200) — E010:
 - HitRate@10: 0.835
-- MRR: 0.522579
+- MRR: 0.653149
 - MTTC: 4.515
 - Efficiency: 0.6485
-- TechnicalScore: 0.703974
+- TechnicalScore: 0.743145
 
 Scenario metrics:
-- buying: HitRate@10 0.8625, MRR 0.502108, MTTC 3.900
-- browsing: HitRate@10 0.825, MRR 0.479415, MTTC 4.675
-- intent_override: HitRate@10 0.8, MRR 0.658135, MTTC 5.333333
-- boundary: HitRate@10 0.8, MRR 0.625, MTTC 5.700
+- buying: HitRate@10 0.8625, MRR 0.654807, MTTC 3.900
+- browsing: HitRate@10 0.825, MRR 0.608274, MTTC 4.675
+- intent_override: HitRate@10 0.8, MRR 0.736111, MTTC 5.333333
+- boundary: HitRate@10 0.8, MRR 0.750000, MTTC 5.700
+
+E010 mechanism check: HitRate@10, MTTC, and Efficiency are bit-identical to
+E006 in aggregate and in every scenario bucket — necessarily so, because
+`_coverage_rerank()` reorders exactly the ten ids that are returned, so the
+target can never cross the top-10 boundary (see "E010 Outcome" above). Only
+MRR moved (+0.130570), and TechnicalScore's +0.039171 gain is attributable
+to the MRR term alone (0.30 × 0.130570 = 0.039171). All four scenario
+buckets improved on MRR. D-5: 53 sessions rank-improved, 1 regressed, 0
+hit→miss.
+
+E006 (prior best): HitRate@10 0.835, MRR 0.522579, MTTC 4.515,
+Efficiency 0.6485, TechnicalScore 0.703974.
 
 E006 mechanism check: HitRate@10 is bit-identical to E004 in aggregate and
 in every scenario bucket, consistent with E006 changing only which
@@ -292,8 +418,8 @@ below), and is now the current best system.
 
 Two layers: what's running, and what's designed but not yet implemented.
 
-Running (`starter/agent.py`, modified per E001 + E002 + E003 + E004 + E006;
-E005 tested and reverted):
+Running (`starter/agent.py`, modified per E001 + E002 + E003 + E004 + E006 +
+E010; E005, E007, and E008 tested and reverted):
 - in-memory SQLite FTS5/BM25 index over the full catalog
 - catalog-derived category index (full / last2 / last1 / segment
   granularities) with taxonomy-consistent relaxation and a small
@@ -315,7 +441,18 @@ E005 tested and reverted):
   message = one unit) whose terms overlap the candidate's indexed terms
   (title/categories/features/details/store/description); binary per-unit
   credit, stable sort, no IDF or field weights. Candidate membership and
-  count are unchanged from E003 — ordering only.
+  count are unchanged from E003 — ordering only. Since E010 this count is
+  the SECONDARY sort key, not the primary one.
+- same-set proximity-aware reranking (E010, KEEP): scores each candidate by
+  the summed length of the longest contiguous n-gram (n in [2, 4]) of each
+  admitted evidence unit occurring in the candidate's own normalized,
+  space-padded token stream, and sorts on
+  `(proximity DESC, coverage DESC, incoming order stable)`. Backed by
+  `_product_stream()` with a per-Agent-instance memoization cache following
+  the M6 pattern (catalog-static, never cleared by `reset()`). Candidate
+  membership and count are unchanged from E003/E004 — ordering only.
+  Because the reranked set is exactly the returned top-10, this can move
+  MRR only, never HitRate@10 or MTTC.
 - adaptive, catalog-side clarification selection (E006, KEEP): replaces the
   turn-indexed lookup into `_ASK_SEQUENCE` with `_select_attribute()`,
   which scores five specific attributes (material, color, style, feature,
@@ -363,7 +500,9 @@ Evaluator wall-clock: 313.42s -> 72.97s, 4.30x speedup
 
 Behavioral equivalence: 200 sessions / 870 turns / 0 mismatches
 
-Algorithm capability remains E006. The M6 cache does not constitute E007.
+Algorithm capability at M6 was E006. The M6 cache does not constitute E007.
+(E010 has since been KEPT and is the current best; see "E010 Outcome"
+above. The M6 findings below are unaffected and are not reverted.)
 
 The accepted optimization is a single pure per-Agent-instance memoization
 cache for `_product_terms(parent_asin)` (catalog-static, immutable for the
@@ -384,12 +523,13 @@ M6's own freeze/no-E007 declaration was the prior human decision. That
 freeze has since been explicitly lifted on 2026-08-31 for one preregistered
 post-v1.1 experiment (E007 — Candidate Pool Expansion) — see "Human
 Decision — Freeze Lifted (2026-08-31)" above. E007 has been evaluated and
-REVERTED (see "E007 Outcome" above); current best algorithm remains E006.
-`starter/agent.py` has been restored to the pre-E007 (E006 + M6) code.
-M7 — Submission remains deferred; see "E008 Outcome (2026-08-31)" above:
-E008 has also been evaluated and REVERTED, and `starter/agent.py` is at
-the E006 + M6 code (the E008 change was discarded without being
-committed). No restoration step is outstanding.
+REVERTED (see "E007 Outcome" above), which left E006 as the best algorithm
+at that point, and `starter/agent.py` was restored to the pre-E007
+(E006 + M6) code. E008 was likewise evaluated and REVERTED, its change
+discarded without being committed. E010 was then evaluated and **KEPT**, so
+`starter/agent.py` now carries E010 on top of E006 + M6 (see "E010 Outcome"
+above). No restoration step is outstanding. M7 — Submission remains
+deferred.
 
 # Known Baseline Weaknesses
 
@@ -408,7 +548,19 @@ committed). No restoration step is outstanding.
 - lexical retrieval only
 - naive coverage can over-credit generic/scaffold terms: a candidate can
   receive coverage credit through an attribute-name or conversational
-  scaffold word without matching the actual disclosed value (E004)
+  scaffold word without matching the actual disclosed value (E004). E010
+  demotes coverage to a tiebreak, which reduces but does not remove this
+- **paraphrase sensitivity is unmeasured and is E010's main risk**: ranking
+  on contiguous n-grams is a priori more brittle to rewording than the
+  bag-of-words rule it replaced, and the public set cannot detect this. The
+  D012 paraphrase stress test remains unrun
+- E010's proximity score is unnormalized by candidate text length, so a
+  verbose product has more surface in which to contain a phrase; no length
+  penalty was tested
+- E010 costs ~1.39x evaluator wall clock (73.4s → 101.4s), reported and not
+  optimized — the preregistration forbade bundling a performance experiment
+- `N_MAX = 4` was preregistered and frozen; no other value has been run
+  against the official evaluator, so it is not known to be optimal
 - Resolved at M6: `_product_terms()` was previously uncached, causing
   `_coverage_rerank()` (E004) and `_select_attribute()` (E006) to each
   perform their own per-candidate SQL lookup and tokenization per turn.
@@ -425,6 +577,14 @@ committed). No restoration step is outstanding.
 - baseline reproducible
 
 # Current Task
+
+E010 — Proximity-aware Reranking is complete and KEPT (see "E010 Outcome"
+above and EXPERIMENTS.md for the full record). It is the current best
+system. `starter/agent.py` carries the change; the preregistration was
+committed before implementation. No task is in flight.
+
+The prior task notes below are retained as historical record.
+
 E004 — Coverage-aware Lightweight Reranking (a pure same-set reorder of the
 final E003 candidate ids by plain, unweighted lexical constraint coverage;
 E001 retrieval, E002 clarification sequence, and E003 evidence admission/
@@ -457,6 +617,18 @@ record. It is the current best system (see "Current Best System"/"Current
 Best Metrics" above). E006 completes M5 capability development.
 
 # Next Milestone
+
+**Current position (read this first; the rest of this section is a
+chronological record and its older present-tense statements are superseded):
+E010 — Proximity-aware Reranking is KEPT and is the current best system
+(TechnicalScore 0.743145). `starter/agent.py` carries E010 on top of
+E006 + M6. Next milestone is M7 — Submission, still deferred pending the
+human's direction. The highest-value next investigation is D012 (paraphrase
+stress), because E010's contiguous-n-gram ranker is structurally more
+exposed to rewording than the bag-of-words rule it replaced and the public
+set cannot detect that. Algorithm development is not frozen; further
+post-v1.1 experiments still require explicit human approval.**
+
 M5 — Conversation Intelligence is complete: E005 (erase-all override reset)
 REVERTED, E006 (adaptive catalog-side clarification) KEPT. The
 architecture's supersede-conflicting default override policy remains an
@@ -510,5 +682,42 @@ checker) and `docs/diagnostics/E006_M6_BASELINE.md`. R009 changed no
 runtime code and reproduced the E006 + M6 baseline exactly. See
 EXPERIMENTS.md "R009".
 
+A third post-v1.1 experiment, E010 — Proximity-aware Reranking, was
+preregistered (committed in `5035018` before any runtime change),
+implemented, evaluated once, and **KEPT** by human decision on 2026-08-31
+(see "E010 Outcome (2026-08-31)" above and EXPERIMENTS.md for the full
+record). TechnicalScore 0.703974 → 0.743145 (+0.039171), entirely through
+MRR (+0.130570); HitRate@10, MTTC, and Efficiency are unchanged by
+construction. `starter/agent.py` now carries E010; E007 and E008 remain
+REVERTED. R009's diagnostic tooling made this the first experiment gated by
+an invariant check and a D-5 paired transition matrix before the KEEP call,
+and the frozen-trajectory replay predicted the official result bit-exactly.
+
 # Open Questions
 
+
+1. **Does E010's gain survive paraphrase?** Highest priority. A
+   contiguous-n-gram ranker is structurally more exposed to rewording than
+   the bag-of-words rule it replaced, and the 200 public sessions cannot
+   detect brittleness. D012 (paraphrase stress) is designed but unrun. This
+   should be answered before any further ranking work.
+2. Is `N_MAX = 4` the right length? Preregistered and frozen for E010; no
+   other value has been run officially. R009's counterfactual suggested n=3
+   captures ~84% of n=8, but that is fixed-trajectory diagnostic evidence.
+   Any sweep needs a new authorized preregistration and must not become
+   public-set hill-climbing.
+3. Is candidate pool depth now worth revisiting? E010 raised MRR within the
+   existing top-10 and is capped by it (ceiling +0.093726, of which 41.8%
+   is captured). D-2 prices pool 100 at a ceiling of 0.9609 versus 0.7672 at
+   pool 10, but that is an oracle bound, and E007's pool expansion failed
+   under the old ranker for reasons E010 does not address. Separate
+   preregistration required.
+4. Intent override still has no supersession. It holds E010's only
+   regression (`public_0080`), and the erase-all variant was rejected at
+   E005. The architecture's supersede-only-conflicting default remains
+   unimplemented and untested.
+5. No run-to-run variance estimate exists (D-6 planned), so small deltas
+   such as E004's +0.0058 and E006's +0.0112 have never been separated from
+   noise. E010's +0.0392 is large enough that this does not affect its
+   KEEP, but it still bounds how finely future results can be read.
+6. Private-set generalization remains unknown.

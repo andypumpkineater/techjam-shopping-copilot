@@ -25,6 +25,13 @@ _DOMINANT_ROOT_THRESHOLD = 0.99
 PRIMARY_SLOTS = 7
 INSURANCE_SLOTS = 3
 
+# E010 — longest contiguous evidence n-gram considered when scoring word-order
+# proximity. Preregistered at 4 before evaluation; not swept, not tuned after
+# seeing results. Unigrams are excluded by construction (the range below stops
+# at 2): a single-token match is bag-of-words overlap, which E004's coverage
+# already scores, so counting it here would add no order signal.
+N_MAX = 4
+
 # E002 — fixed, deterministic, label-free clarification sequence, indexed by
 # turn (1-based). One pass over the contract-legal attributes for which the
 # published evaluator's classify_constraint() can disclose a constraint,
@@ -130,6 +137,25 @@ def _evidence_units(messages: list[str]) -> list[frozenset[str]]:
     return [unit for unit in units if unit]
 
 
+# E010 — the same E004 evidence units, but order-preserving: one admitted
+# message is still one unit, and units that tokenize to nothing are still
+# dropped, so these lists stay aligned one-to-one with _evidence_units().
+def _evidence_token_lists(messages: list[str]) -> list[list[str]]:
+    token_lists = (_terms(message) for message in messages)
+    return [tokens for tokens in token_lists if tokens]
+
+
+# E010 — one unit's contiguous n-grams for n in [2, N_MAX], longest first, each
+# space-padded so that testing it against a padded product token stream is a
+# substring test with word boundaries.
+def _unit_ngrams(tokens: list[str]) -> list[tuple[int, str]]:
+    grams: list[tuple[int, str]] = []
+    for n in range(min(N_MAX, len(tokens)), 1, -1):
+        for start in range(len(tokens) - n + 1):
+            grams.append((n, " " + " ".join(tokens[start:start + n]) + " "))
+    return grams
+
+
 def _category_keys(categories: list[str]) -> dict[str, str]:
     cleaned = [value.strip() for value in categories if value and value.strip()]
     if not cleaned:
@@ -162,6 +188,11 @@ class Agent:
         # lives for the Agent instance's lifetime and is intentionally never
         # cleared by reset(), which only touches per-session state.
         self._product_terms_cache: dict[str, frozenset[str]] = {}
+        # E010 — order-preserving counterpart of the cache above, following the
+        # same M6 pattern for the same reason: the catalog is built once and
+        # never mutated, so this is a pure memoization, lives for the Agent
+        # instance's lifetime, and is intentionally not cleared by reset().
+        self._product_stream_cache: dict[str, str] = {}
         self._build_index()
 
     def _dominant_root(self) -> str | None:
@@ -332,21 +363,68 @@ class Agent:
         self._product_terms_cache[parent_asin] = result
         return result
 
+    def _product_stream(self, parent_asin: str) -> str:
+        # E010 — the same six indexed fields and the same _terms() tokenization
+        # _product_terms() applies, but keeping token order and space-padded at
+        # both ends, so an n-gram membership test is a substring test that
+        # cannot match across a word boundary.
+        if parent_asin in self._product_stream_cache:
+            return self._product_stream_cache[parent_asin]
+        row = self.connection.execute(
+            "SELECT title, categories, features, details, store, description "
+            "FROM products WHERE parent_asin = ?",
+            (parent_asin,),
+        ).fetchone()
+        if row is None:
+            result = " "
+        else:
+            result = " " + " ".join(_terms(" ".join(str(value) for value in row))) + " "
+        self._product_stream_cache[parent_asin] = result
+        return result
+
+    def _proximity_score(
+        self, unit_grams: list[list[tuple[int, str]]], parent_asin: str
+    ) -> int:
+        # E010 — sum, over evidence units, of the longest contiguous n-gram of
+        # that unit (n in [2, N_MAX]) occurring in the candidate's own token
+        # stream; a unit with no such n-gram contributes 0. Grams arrive
+        # longest-first, so the first match is the longest one.
+        stream = self._product_stream(parent_asin)
+        total = 0
+        for grams in unit_grams:
+            for n, gram in grams:
+                if gram in stream:
+                    total += n
+                    break
+        return total
+
     def _coverage_rerank(self, session_id: str, ids: list[str]) -> list[str]:
-        # E004 — reorder the exact E003 candidate set by how many admitted
-        # evidence units each candidate's indexed text overlaps (binary
-        # per-unit credit, no weights). Same set, same length; only order
-        # may change. Stable sort preserves E003's order on ties.
-        evidence_units = _evidence_units(self._sessions[session_id])
+        # E004 — count how many admitted evidence units each candidate's
+        # indexed text overlaps (binary per-unit credit, no weights).
+        # E010 — score the same candidates by word-order proximity as well, and
+        # rank on (proximity, coverage) so that order is the primary signal and
+        # E004's bag-of-words coverage breaks its ties. Candidate membership is
+        # untouched: same set, same length, only order may change. The stable
+        # sort preserves the incoming E003 lexical order on full ties.
+        messages = self._sessions[session_id]
+        evidence_units = _evidence_units(messages)
         if not evidence_units:
             return ids
+        # Built once per call and reused across every candidate.
+        unit_grams = [_unit_ngrams(tokens) for tokens in _evidence_token_lists(messages)]
         coverage = {
             parent_asin: sum(
                 1 for unit in evidence_units if self._product_terms(parent_asin) & unit
             )
             for parent_asin in ids
         }
-        return sorted(ids, key=lambda parent_asin: -coverage[parent_asin])
+        proximity = {
+            parent_asin: self._proximity_score(unit_grams, parent_asin)
+            for parent_asin in ids
+        }
+        return sorted(
+            ids, key=lambda parent_asin: (-proximity[parent_asin], -coverage[parent_asin])
+        )
 
     def _attribute_score(
         self,
