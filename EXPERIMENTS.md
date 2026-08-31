@@ -862,9 +862,13 @@ This is a known performance limitation for M6. It was not optimized as part
 of this experiment.
 
 Next:
-M6 — Ablation / Robustness. No E007 algorithm experiment is planned;
-algorithm capability development freezes after E006 per the human decision
-recorded in PROJECT_STATE.md.
+M6 — Ablation / Robustness. No E007 algorithm experiment was planned at
+this point; algorithm capability development froze after E006 per the
+human decision recorded in PROJECT_STATE.md. (That freeze was later
+explicitly lifted by a new human decision on 2026-08-31 for one
+preregistered post-v1.1 experiment — see "E007 — Candidate Pool Expansion
+before Coverage Reranking (PREREGISTERED)" below and PROJECT_STATE.md
+"Human Decision — Freeze Lifted (2026-08-31)".)
 
 ## M6 — Robustness, Reproducibility, and Performance
 
@@ -1064,6 +1068,58 @@ M6 introduced no new recommendation or conversation capability.
 
 No further performance optimization is planned before submission.
 
-Next:
-M7 — Submission. Algorithm and performance behavior are now frozen; no
-E007 is planned.
+Next (as recorded at M6 completion):
+M7 — Submission. Algorithm and performance behavior were frozen; no E007
+was planned.
+
+This was the prior human decision. It was explicitly lifted by a new human
+decision on 2026-08-31 for one preregistered post-v1.1 experiment. See
+"E007 — Candidate Pool Expansion before Coverage Reranking
+(PREREGISTERED)" immediately below and PROJECT_STATE.md "Human Decision —
+Freeze Lifted (2026-08-31)" for the full record and discipline. Current
+best remains E006 until E007 is evaluated and KEEP/REVERT is decided.
+
+## E007 — Candidate Pool Expansion before Coverage Reranking (PREREGISTERED, NOT YET IMPLEMENTED)
+
+Status: planning only. Not implemented. Not evaluated. No code in
+`starter/agent.py` has changed for this entry.
+
+Hypothesis: the current lexical retrieval cutoff is too shallow for the
+E004 coverage-aware reranker. `starter/agent.py::respond()` truncates the
+candidate list to `top_k` (10) before calling `_coverage_rerank()`, both on
+the category-scoped path (`ids = ids[:top_k]` after primary/insurance
+slot-filling and backfill) and the unscoped path (`_unscoped_query(...,
+top_k)` retrieves exactly `top_k` directly). A relevant product ranked just
+outside that Top10 lexical cutoff can never be seen, let alone promoted, by
+the reranker. E007 retrieves a larger candidate pool with the SAME E001
+retrieval routes, applies the SAME E004 coverage reranker to that larger
+pool, then truncates to the contract `top_k` only after reranking.
+
+Pre-registered rule (ONE pool size, no tuning): a POOL_MULTIPLIER of 2x
+candidate depth. For the official `top_k = 10` contract: internal pool = 20
+candidates; primary/insurance slots scale by the same multiplier from the
+existing `PRIMARY_SLOTS = 7` / `INSURANCE_SLOTS = 3` split (14 scoped/
+relaxed primary, 6 global insurance), preserving the same 70/30 policy
+conceptually rather than introducing a second independently-tunable ratio.
+The unscoped path also retrieves at 2x depth before the same rerank and
+truncation. E006's `_select_attribute()` continues to read only the final,
+truncated `top_k` ids — never the internal pool.
+
+Frozen (unchanged): E001 retrieval semantics (TOKEN_RE, STOPWORDS,
+`_terms`, FTS fields, BM25 expression/weights, category detection/
+hierarchy/relaxation, global insurance concept, dominant root behavior);
+E003 evidence accumulation; E004 `_evidence_units`/`_product_terms`/
+coverage formula/stable sort; E006 adaptive vocabularies/score/fallback
+order/`_asked_attributes`; M6 `_product_terms` memoization semantics. No
+IDF, field weighting, embeddings, dense retrieval, LLM reranking, override
+handling, personalization, or new clarification logic.
+
+Discipline: preregistered before evaluation; no repeated public-set tuning
+of pool size; if E007 fails, revert to E006; no silent E007b with another
+pool size; further experiments beyond E007 require explicit human
+approval. Evaluation rule: run the official evaluator exactly once after
+implementation and compare against the E006 baseline above (HitRate@10
+0.835, MRR 0.522579, MTTC 4.515, Efficiency 0.6485, TechnicalScore
+0.703974); TechnicalScore is the final KEEP/REVERT criterion, HitRate@10 is
+the primary mechanism metric of interest. No pool-size tuning after seeing
+results.

@@ -8,8 +8,51 @@ PASS, reproducibility PASS in the current verified environment, and one
 semantics-preserving `_product_terms()` memoization optimization KEPT (see
 "M6 — Robustness, Reproducibility, and Performance" below and
 EXPERIMENTS.md for the full record). M6 introduced no new algorithm
-capability; current best algorithm remains E006. Next and only remaining
-milestone: M7 — Submission.
+capability; current best algorithm remains E006. The prior human decision
+freezing algorithm capability development after E006 (no E007 planned) was
+explicitly lifted by a new human decision on 2026-08-31 for a single,
+tightly time-boxed post-v1.1 experiment — see "Human Decision — Freeze
+Lifted (2026-08-31)" below. M7 — Submission is deferred until that
+authorized experiment (E007) is finished or the human stops
+experimentation.
+
+# Human Decision — Freeze Lifted (2026-08-31)
+
+Previous decision: algorithm capability development was frozen after E006
+and no E007 was planned (recorded at M6 completion; see EXPERIMENTS.md "M6
+— Robustness, Reproducibility, and Performance").
+
+New HUMAN decision on 2026-08-31: that freeze is explicitly lifted for a
+single, tightly time-boxed post-v1.1 experiment extension. This does not
+rewrite history — Architecture v1.1's original roadmap ended at E006 and
+remains a historical design record (`docs/M2_SYSTEM_DESIGN.md`,
+unchanged), and past E000–E006 experiment records are unchanged.
+
+Authorized next experiment: E007 — Candidate Pool Expansion before
+Coverage Reranking.
+
+Reason: the current E004/E006 pipeline reranks only the small lexical
+candidate set it has already retrieved (truncated to `top_k` before
+coverage reranking — see `starter/agent.py`). If a relevant product lies
+just below the lexical Top10 cutoff, the E004 coverage reranker never gets
+an opportunity to promote it. E007 tests whether giving the SAME frozen
+coverage reranker a larger lexical candidate pool improves final Top10
+retrieval/ranking quality. This is a post-Architecture-v1.1 experiment; it
+does not mean Architecture v1.1 originally specified E007.
+
+Current best remains E006 (see "Current Best Metrics" above) until E007 is
+actually evaluated and a KEEP decision is recorded. M6 robustness/
+performance findings remain valid and are not reverted.
+
+M7 — Submission is deferred until the authorized post-v1.1 experiment is
+finished (KEEP or REVERT recorded) or the human stops experimentation.
+
+Discipline for this extension:
+- E007 is preregistered before evaluation (see EXPERIMENTS.md);
+- no repeated public-set tuning of candidate pool size;
+- if E007 fails (does not KEEP), revert to E006;
+- do not silently launch an E007b with another pool size;
+- further experiments beyond E007 require explicit human approval.
 
 # Environment
 - macOS
@@ -213,9 +256,11 @@ Known limitations:
   environment but not formally portable across all SQLite versions;
 - private-set generalization remains unknown.
 
-Next and ONLY remaining milestone: M7 — Submission.
-
-Algorithm and performance behavior are now frozen. No E007 is planned.
+M6's own freeze/no-E007 declaration was the prior human decision. That
+freeze has since been explicitly lifted on 2026-08-31 for one preregistered
+post-v1.1 experiment (E007 — Candidate Pool Expansion) — see "Human
+Decision — Freeze Lifted (2026-08-31)" above. M7 — Submission is deferred
+until E007 is evaluated and KEEP/REVERT is decided.
 
 # Known Baseline Weaknesses
 
@@ -293,8 +338,12 @@ coverage limitations remain open items, not solved here. E006's extra
 `_product_terms()` lookup is no longer uncached — see "M6 — Robustness,
 Reproducibility, and Performance" above.
 
-**NO E007 algorithm experiment is planned. Algorithm capability development
-freezes after E006.**
+**This freeze has been explicitly lifted by human decision on 2026-08-31
+for one preregistered post-v1.1 experiment: E007 — Candidate Pool
+Expansion before Coverage Reranking. See "Human Decision — Freeze Lifted
+(2026-08-31)" above for the full record and discipline. Current best
+remains E006 until E007 is evaluated and a KEEP/REVERT decision is
+recorded.**
 
 M6 — Robustness / Reproducibility / Performance is now COMPLETE (see "M6 —
 Robustness, Reproducibility, and Performance" above and EXPERIMENTS.md for
@@ -304,8 +353,12 @@ the current verified environment, and one semantics-preserving
 speedup, verified behaviorally identical to E006 across 200 sessions / 870
 turns, 0 mismatches). M6 added no new algorithm capability.
 
-Next and ONLY remaining milestone: **M7 — Submission**. Algorithm and
-performance behavior are now frozen; no E007 is planned.
+Next milestone is **M7 — Submission**, now deferred: the freeze on further
+algorithm capability development has been explicitly lifted by human
+decision on 2026-08-31 for one preregistered post-v1.1 experiment, E007 —
+Candidate Pool Expansion before Coverage Reranking (see "Human Decision —
+Freeze Lifted (2026-08-31)" above). M7 proceeds once E007 is evaluated and
+KEEP/REVERT is decided, or the human stops experimentation.
 
 # Open Questions
 
