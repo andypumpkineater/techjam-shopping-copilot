@@ -6,7 +6,7 @@
     "diagnostic": "Produced by tools/diagnostics/. Offline replay, oracle bound, or counterfactual. Never an official result and never comparable to one."
   },
   "verification": "For each entry: `shasum -a 256 <artifact>` must equal artifact_sha256, and `git show <agent_commit>:starter/agent.py | shasum -a 256` must equal agent_sha256.",
-  "last_updated": "2026-08-31",
+  "last_updated": "2026-09-01",
   "official_runs": [
     {
       "experiment": "E006 + M6",
@@ -78,18 +78,71 @@
       },
       "wall_clock_seconds": 282.9,
       "wall_clock_source": "EXPERIMENTS.md, E011 Results",
-      "note": "CURRENT BEST / submission baseline. Candidate pool 50 with truncation after reranking."
+      "note": "Candidate pool 50 with truncation after reranking. Superseded as submission baseline by E012, then E013."
+    },
+    {
+      "experiment": "E012",
+      "decision": "KEEP",
+      "evidence_class": "official_evaluator_result",
+      "dataset": "data/public_set.jsonl (200 public sessions)",
+      "evaluator": "evaluator/local_evaluator.py, unmodified",
+      "evaluator_command": "python3 -m evaluator.local_evaluator --output results_e012.json",
+      "agent_commit": "3462256",
+      "agent_sha256": "2d6bd894e442bfac85d662489b8cd1dca2a5971bca7572b8ce96a22f14fbf294",
+      "artifact": "docs/diagnostics/E012_SESSIONS.json",
+      "artifact_sha256": "4dc6f8473a99c8e0d343038363a67a4944441546cbeb5156323154c2f78502a5",
+      "metrics": {
+        "hit_rate_at_10": 0.965,
+        "mrr": 0.62352,
+        "mttc": 3.575,
+        "efficiency": 0.7425,
+        "technical_score": 0.818056,
+        "sample_count": 200,
+        "reported_total_tokens": 0
+      },
+      "wall_clock_seconds": 444.3,
+      "wall_clock_source": "EXPERIMENTS.md, E012 result",
+      "note": "Candidate pool 50 -> 100, holding E001's 70/30 primary/insurance ratio. Three constants, zero logic changes. The evaluator run preceded this commit; agent_commit is the commit that contains the evaluated file, and agent_sha256 is that file's hash."
+    },
+    {
+      "experiment": "E013",
+      "decision": "KEEP",
+      "evidence_class": "official_evaluator_result",
+      "dataset": "data/public_set.jsonl (200 public sessions)",
+      "evaluator": "evaluator/local_evaluator.py, unmodified",
+      "evaluator_command": "python3 -m evaluator.local_evaluator --output results_e013.json",
+      "agent_commit": "01ea938",
+      "agent_sha256": "47543f3dc10df61c02ffafb24f1ee1a9cd56c52dd83c7cb35aa29e082b9808ee",
+      "artifact": "docs/diagnostics/E013_SESSIONS.json",
+      "artifact_sha256": "7cab36db8ed5d1fb30d60b32793a3fc459858ca1ceef2a73ecefd7bc1550c897",
+      "metrics": {
+        "hit_rate_at_10": 0.96,
+        "mrr": 0.641067,
+        "mttc": 2.62,
+        "efficiency": 0.838,
+        "technical_score": 0.83992,
+        "sample_count": 200,
+        "reported_total_tokens": 0
+      },
+      "wall_clock_seconds": 411.19,
+      "wall_clock_source": "EXPERIMENTS.md, E013 result",
+      "note": "CURRENT BEST / submission baseline. Clause-level evidence units plus front-loaded open-ended clarification, preregistered and evaluated as one indivisible coupled change. The evaluator run preceded this commit; agent_commit is the commit that contains the evaluated file, and agent_sha256 is that file's hash."
     }
   ],
   "current_submission_baseline": {
-    "experiment": "E011",
-    "technical_score": 0.796939,
-    "evaluated_agent_commit": "093078d",
-    "evaluated_agent_sha256": "cb46d467a114c87ef002613219be45f509e7ecbc292af15858229e1d168d0d92",
-    "submission_source_agent_sha256": "cb46d467a114c87ef002613219be45f509e7ecbc292af15858229e1d168d0d92",
+    "experiment": "E013",
+    "technical_score": 0.83992,
+    "evaluated_agent_commit": "01ea938",
+    "evaluated_agent_sha256": "47543f3dc10df61c02ffafb24f1ee1a9cd56c52dd83c7cb35aa29e082b9808ee",
+    "submission_source_agent_sha256": "47543f3dc10df61c02ffafb24f1ee1a9cd56c52dd83c7cb35aa29e082b9808ee",
     "submission_source_matches_evaluated": true,
-    "provenance_note": "The submitted starter/agent.py is byte-identical to the agent evaluated for the E011 result. Same SHA-256, no divergence of any kind.",
+    "provenance_note": "The submitted starter/agent.py is byte-identical to the agent evaluated for the E013 result. Same SHA-256, no divergence of any kind.",
     "independent_reproduction": {
+      "status": "NOT PERFORMED for this baseline",
+      "note": "Each experiment is run on the official evaluator exactly once by project policy. The only independent reproduction performed to date was at E011; it is recorded below and is evidence about this pipeline's determinism, not about the E013 result specifically."
+    },
+    "prior_independent_reproduction": {
+      "experiment": "E011",
       "date": "2026-08-31",
       "at_commit": "093078d",
       "wall_clock_seconds": 283.32,

@@ -25,7 +25,7 @@ WHAT THIS IS NOT
 
     `--verify` checks that mirroring mechanically: it re-derives the outcome
     (hit / first_hit_turn / best_rank) and compares it against the tracked
-    per-session snapshot `docs/diagnostics/E011_SESSIONS.json`, which was
+    per-session snapshot `docs/diagnostics/E013_SESSIONS.json`, which was
     produced by the official evaluator. If this driver drifted from evaluator
     semantics, that comparison fails.
 
@@ -73,7 +73,7 @@ from starter.agent import Agent
 
 
 REPO = Path(__file__).resolve().parent.parent
-SNAPSHOT = REPO / "docs" / "diagnostics" / "E011_SESSIONS.json"
+SNAPSHOT = REPO / "docs" / "diagnostics" / "E013_SESSIONS.json"
 SHOW_RECOMMENDATIONS = 5
 
 
@@ -186,8 +186,10 @@ def render_markdown(result: dict, products: dict, meta: dict, verified: str | No
     w("One real session, start to finish, against the frozen Agent that produced our")
     w("reported TechnicalScore. It shows the three mechanisms the system runs on:")
     w("")
-    w("- **evidence accumulates** — each customer reply joins the lexical query and stays;")
-    w("- **the clarification attribute is chosen from the candidates**, so it changes as they change;")
+    w("- **evidence accumulates** — each customer reply joins the lexical query and stays,")
+    w("  split at clause boundaries so each stated constraint scores on its own (E013);")
+    w("- **clarification opens wide, then narrows** — the first two turns ask the")
+    w("  open-ended `other`, then the attribute is chosen from the candidates themselves;")
     w("- **the ranking moves** as evidence arrives, until the target reaches the Top 10.")
     w("")
     w("The Agent never receives the target. Customer messages come from the published")
@@ -247,8 +249,11 @@ def render_markdown(result: dict, products: dict, meta: dict, verified: str | No
     attributes = [t["ask_attribute"] for t in result["turns"] if t["ask_attribute"]]
     w(f"- The clarification attribute changes across turns: "
       + ", ".join(f"`{a}`" for a in attributes) + ".")
-    w("  Each is chosen by scoring attributes against that turn's own Top 10, so the")
-    w("  Agent asks about what its current candidates disagree on.")
+    w("  Turns 1-2 ask the open-ended `other` unconditionally: most of a shopper's")
+    w("  constraints do not fall into any one attribute category, so an open question")
+    w("  elicits more per turn than a well-chosen narrow one. From turn 3 the attribute")
+    w("  is scored against that turn's own Top 10, so the Agent asks about what its")
+    w("  current candidates disagree on. Both halves are E013; neither works alone.")
     first, last = result["turns"][0], result["turns"][-1]
     w(f"- The recommendation list is not static: turn 1 opens with "
       f"`{first['ranked'][0] if first['ranked'] else '—'}` at rank 1 and the final turn opens with "
@@ -287,7 +292,7 @@ def render_markdown(result: dict, products: dict, meta: dict, verified: str | No
         w(f"| Outcome verified against official evaluator snapshot | {verified} |")
     w("")
     w("The outcome above is cross-checked against")
-    w("[`docs/diagnostics/E011_SESSIONS.json`](diagnostics/E011_SESSIONS.json), the")
+    w("[`docs/diagnostics/E013_SESSIONS.json`](diagnostics/E013_SESSIONS.json), the")
     w("per-session record of the official evaluator run that produced our reported")
     w("TechnicalScore:")
     w("")

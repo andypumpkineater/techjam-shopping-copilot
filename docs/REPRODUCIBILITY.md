@@ -121,27 +121,30 @@ python3 -m evaluator.local_evaluator --output results_myrun.json
 
 ## 5. Final measured metrics
 
-Official evaluator, 200 public sessions, current system (E011):
+Official evaluator, 200 public sessions, current system (E013):
 
 | Metric | Value |
 |---|---|
-| HitRate@10 | **0.930** |
-| MRR | **0.625462** |
-| MTTC | **3.785** |
-| Efficiency | **0.7215** |
-| **TechnicalScore** | **0.796939** |
+| HitRate@10 | **0.960** |
+| MRR | **0.641067** |
+| MTTC | **2.620** |
+| Efficiency | **0.838** |
+| **TechnicalScore** | **0.839920** |
 
 By scenario:
 
 | Scenario | n | HitRate@10 | MRR | MTTC |
 |---|---|---|---|---|
-| buying | 80 | 0.925 | 0.605670 | 3.1875 |
-| browsing | 80 | 0.950 | 0.584430 | 3.775 |
-| intent_override | 30 | 0.866667 | 0.726706 | 4.800 |
-| boundary | 10 | 1.000 | 0.808333 | 5.600 |
+| buying | 80 | 0.950 | 0.577996 | 2.200 |
+| browsing | 80 | 0.975 | 0.633408 | 2.375 |
+| intent_override | 30 | 0.933333 | 0.809722 | 4.200 |
+| boundary | 10 | 1.000 | 0.700952 | 3.200 |
 
 Per-session outcomes for this exact run are tracked verbatim as
-`docs/diagnostics/E011_SESSIONS.json`.
+`docs/diagnostics/E013_SESSIONS.json`. The three prior KEEP runs are tracked the
+same way (`E006_M6_SESSIONS.json`, `E010_SESSIONS.json`, `E011_SESSIONS.json`,
+`E012_SESSIONS.json`) and all five are bound to their code in
+`docs/PROVENANCE.json`.
 
 These are **official evaluator results**. Oracle bounds and counterfactual
 figures appearing elsewhere in this repository (`docs/diagnostics/E006_M6_BASELINE.json`,
@@ -153,9 +156,9 @@ every artifact with its evidence class.
 
 | Measurement | Value |
 |---|---|
-| 200-session evaluator run, wall clock | **283.32 s** |
+| 200-session evaluator run, wall clock | **411.19 s** |
 | Measured on | CPython 3.11.15, macOS Darwin 25.5.0, arm64 |
-| Per session, derived | ~1.4 s |
+| Per session, derived | ~2.1 s |
 
 This is a **single measurement on one machine**, not a latency guarantee. It
 includes one full index build (the 50,000-product in-memory SQLite FTS5 index is
@@ -193,10 +196,14 @@ in this repository. There is therefore no environment-variable manifest.
 
 ## 8. Determinism and reproducibility notes
 
-**Reproduced.** On 2026-08-31 the official evaluator was re-run at commit
-`093078d` and produced output **byte-identical** to the tracked snapshot
-`docs/diagnostics/E011_SESSIONS.json` (SHA-256
-`b78820ce3bcd1045196112eed8c4cfda263b40d4844b4051671733b06a2519e3`).
+**Reproduced — once, at E011.** On 2026-08-31 the official evaluator was re-run
+at commit `093078d` and produced output **byte-identical** to the tracked
+snapshot `docs/diagnostics/E011_SESSIONS.json` (SHA-256
+`b78820ce3bcd1045196112eed8c4cfda263b40d4844b4051671733b06a2519e3`). The current
+baseline is E013, not E011: this check has not been repeated at E012 or E013,
+because each experiment is run on the official evaluator exactly once by project
+policy. Read it as evidence about the determinism of this pipeline, not as a
+second measurement of the reported score.
 
 The agent contains no randomness: no `random`, no `time`, no hashing of
 unordered structures into output order, no concurrency. Ordering is decided by
@@ -262,27 +269,35 @@ verifiable:
 
 ```bash
 # artifact integrity
-shasum -a 256 docs/diagnostics/E011_SESSIONS.json
+shasum -a 256 docs/diagnostics/E013_SESSIONS.json
 
 # the code that produced it
-git show 093078d:starter/agent.py | shasum -a 256
+git show 01ea938:starter/agent.py | shasum -a 256
 ```
 
 ### Submitted source is the evaluated source
 
 | | SHA-256 |
 |---|---|
-| `starter/agent.py` as evaluated for the E011 result (commit `093078d`) | `cb46d467a114c87ef002613219be45f509e7ecbc292af15858229e1d168d0d92` |
-| `starter/agent.py` as submitted | `cb46d467a114c87ef002613219be45f509e7ecbc292af15858229e1d168d0d92` |
+| `starter/agent.py` as evaluated for the E013 result (commit `01ea938`) | `47543f3dc10df61c02ffafb24f1ee1a9cd56c52dd83c7cb35aa29e082b9808ee` |
+| `starter/agent.py` as submitted | `47543f3dc10df61c02ffafb24f1ee1a9cd56c52dd83c7cb35aa29e082b9808ee` |
 
 **These are the same file.** The submitted `starter/agent.py` is byte-identical
-to the agent that produced TechnicalScore 0.796939 under the official evaluator.
+to the agent that produced TechnicalScore 0.839920 under the official evaluator.
 There is no divergence to explain, and no "equivalent but modified" claim to
 audit. Verify it in one line:
 
 ```bash
-diff <(git show 093078d:starter/agent.py) starter/agent.py && echo "byte-identical"
+diff <(git show 01ea938:starter/agent.py) starter/agent.py && echo "byte-identical"
 ```
+
+**Reproduction status, stated plainly.** Each experiment is run on the official
+evaluator exactly once, by project policy. One independent reproduction has been
+performed in this project's history — at E011, on 2026-08-31, at commit
+`093078d`, returning output byte-identical to `E011_SESSIONS.json` in 283.32 s.
+That is evidence about this pipeline's determinism. It is **not** a second run of
+the E012 or E013 results, and `docs/PROVENANCE.json` records it as such rather
+than letting it read as if it covered the current baseline.
 
 ---
 

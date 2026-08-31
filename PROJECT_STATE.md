@@ -60,23 +60,32 @@ see "Algorithm freeze lifted (2026-09-01)" below.
 
 ## Submission source provenance
 
-**STALE as of 2026-09-01 — this block describes the E011-era submission and has
-not been re-established since.** `starter/agent.py` has changed twice since it
-was written (E012 KEEP, E013 KEEP), so the hash below is no longer the current
-agent's. No submission-ready checkpoint exists at present (see "M7 progress"),
-so nothing is currently mis-stated to a judge; re-deriving the hash, updating
-`docs/REPRODUCIBILITY.md` section 10 and `docs/PROVENANCE.json` is an open M7
-item. The original text follows unedited.
+**Re-established 2026-09-01 at E013.** The drift that opened at E012 (this block
+still described the E011-era submission through two algorithm changes) is closed.
 
 The submitted `starter/agent.py` is **byte-identical** to the agent evaluated for
-the E011 result:
+the E013 result:
 
-- evaluated (commit `093078d`): `cb46d467a114c87ef002613219be45f509e7ecbc292af15858229e1d168d0d92`
-- submitted: `cb46d467a114c87ef002613219be45f509e7ecbc292af15858229e1d168d0d92`
+- evaluated (commit `01ea938`): `47543f3dc10df61c02ffafb24f1ee1a9cd56c52dd83c7cb35aa29e082b9808ee`
+- submitted: `47543f3dc10df61c02ffafb24f1ee1a9cd56c52dd83c7cb35aa29e082b9808ee`
 
-Same file, same hash, no divergence. `EXPERIMENTS.md` needed no edit and received
-none. Full statement: `docs/REPRODUCIBILITY.md` section 10 and
-`docs/PROVENANCE.json`.
+Same file, same hash, no divergence. Verify:
+`diff <(git show 01ea938:starter/agent.py) starter/agent.py`.
+Full statement: `docs/PROVENANCE.json`, which now carries all five official runs
+(E006+M6, E010, E011, E012, E013) with every agent and artifact hash verified,
+and `docs/REPRODUCIBILITY.md` section 10.
+
+**One honesty note carried forward:** the E011 entry recorded an independent
+reproduction (2026-08-31, byte-identical). No independent reproduction has been
+performed for E012 or E013 — each experiment is run on the official evaluator
+exactly once by project policy. `docs/PROVENANCE.json` states this explicitly
+rather than letting the E011 reproduction read as if it covered the current
+baseline.
+
+Superseded text, retained as the record of what this block said from 2026-08-31
+to 2026-09-01: the same claim at commit `093078d`, SHA-256
+`cb46d467a114c87ef002613219be45f509e7ecbc292af15858229e1d168d0d92`, for the
+E011 result.
 
 ## Official documentation authority
 
