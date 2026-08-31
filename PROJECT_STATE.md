@@ -1,7 +1,8 @@
 # Current Milestone
 M3 — Retrieval (complete: E001–E003 KEEP). M4 — Ranking (complete: E004
-KEEP) per Architecture v1.1 roadmap. M5 — Conversation Intelligence next;
-see "Next Milestone" below.
+KEEP) per Architecture v1.1 roadmap. M5 — Conversation Intelligence in
+progress: E005 (erase-all intent-override reset) tested and REVERTED; see
+"Next Milestone" below.
 
 # Environment
 - macOS
@@ -71,6 +72,15 @@ evaluator result under the published simulator mechanics plus evidence
 accumulation, not evidence of boundary- or override-specific reasoning
 (E003 implements neither).
 
+E005 finding: an explicit-lexical-detection + erase-all pre-override reset
+was tested against this E004 baseline and REVERTED — it regressed
+intent_override HitRate@10, MRR, and MTTC materially (buying, browsing, and
+boundary were unaffected), so overall TechnicalScore regressed to 0.644061.
+This rejects erase-all specifically; it does not establish that intent
+override is unsolvable, or that no override policy can help — see
+EXPERIMENTS.md E005 for the full record. Current best system remains E004
+unchanged.
+
 # Reference Documents
 - `docs/sources/TRACK4_PROBLEM_STATEMENT.md` — vision-level problem statement
   (directional only: dual-track routing, hybrid/LLM semantic ranking, dynamic
@@ -119,7 +129,9 @@ constraint-coverage only), not its IDF-weighted or field-weighted variants.
 Remaining, not yet implemented: adaptive attribute selection and
 intent-override supersede semantics. Intent override will default to
 superseding only conflicting evidence (category included, not privileged)
-once implemented. Full E001–E006 roadmap and milestone ownership boundaries
+once implemented; the erase-all variant was tested at E005 and REVERTED, so
+the architecture's supersede-conflicting default remains unimplemented and
+untested. Full E001–E006 roadmap and milestone ownership boundaries
 (M3 Retrieval / M4 Ranking / M5 Conversation Intelligence / M6 Ablation /
 M7 Submission) are in that document.
 
@@ -127,7 +139,8 @@ M7 Submission) are in that document.
 
 Evidence only:
 - append-only evidence can retain stale/conflicting intent — no
-  intent-override supersession
+  intent-override supersession; an erase-all reset was tested at E005 and
+  REVERTED for regressing intent_override, so this limitation is unresolved
 - no adaptive clarification — question order is fixed, not adaptive
 - no boundary-specific semantics
 - unchanged oldest-first 40-term cap — later evidence may be truncated in
@@ -152,30 +165,48 @@ Evidence only:
 E004 — Coverage-aware Lightweight Reranking (a pure same-set reorder of the
 final E003 candidate ids by plain, unweighted lexical constraint coverage;
 E001 retrieval, E002 clarification sequence, and E003 evidence admission/
-accumulation held frozen) is complete and KEPT (see EXPERIMENTS.md for full
-record and rationale). HitRate@10, MTTC, and Efficiency are unchanged from
-E003; MRR and TechnicalScore improved. Do not claim coverage-aware ranking
-in general is optimal, or that IDF/field weighting would necessarily help —
-only the specific plain rule tested here is validated. Do not claim
-intent-override or boundary behavior is solved by E004 — it inherits E003's
-append-only evidence with no supersession or conflict resolution, and adds
-no override- or boundary-specific reasoning.
+accumulation held frozen) remains complete, KEPT, and the current best
+system (see EXPERIMENTS.md for full record and rationale). HitRate@10,
+MTTC, and Efficiency are unchanged from E003; MRR and TechnicalScore
+improved. Do not claim coverage-aware ranking in general is optimal, or
+that IDF/field weighting would necessarily help — only the specific plain
+rule tested here is validated. Do not claim intent-override or boundary
+behavior is solved by E004 — it inherits E003's append-only evidence with
+no supersession or conflict resolution, and adds no override- or
+boundary-specific reasoning.
+
+E005 — Explicit Intent Override Reset (M5 — Conversation Intelligence) has
+since been tested and REVERTED: explicit lexical override detection
+(regex on runtime `user_message`) combined with erasing all pre-override
+session evidence and rebuilding the query from the override message alone
+regressed HitRate@10, MRR, and MTTC on the `intent_override` bucket and
+regressed overall TechnicalScore from 0.692745 to 0.644061, while buying,
+browsing, and boundary stayed bit-identical to E004 (see EXPERIMENTS.md
+E005 for full record, deltas, and interpretation). `starter/agent.py`'s
+E005 change is pending revert to the E004 code. Do not claim intent-override
+supersession is impossible or not worth pursuing — this experiment rejects
+only the erase-all variant, not finer-grained (supersede-only-conflicting)
+approaches, which remain untested.
 
 # Next Milestone
-Per the Architecture v1.1 roadmap (`docs/M2_SYSTEM_DESIGN.md` §D), the M4
-experiment set is now complete: E004 was the sole M4-numbered experiment in
-the roadmap table, and the "Sequencing logic" note (§D) states "E005–E006
-are M5 semantics and policy" — the roadmap does not list any further
-M4-numbered experiment between E004 and E005. The next experiment per the
-roadmap is therefore **E005 — Intent override** (M5 — Conversation
-Intelligence): "Intent override is best handled by superseding conflicting
-constraints," tested as three variants — (a) supersede-conflicting
-[default], (b) demote, (c) erase-all — primary metric the `intent_override`
-scenario bucket, with all three variants recorded per §D ("this is where
-v1.0 was wrong"). This is a milestone transition (M4 → M5); no roadmap
-conflict was found. E003's oldest-first 40-term cap, append-only evidence
-contamination, and E004's generic-token/scaffold coverage limitations
-remain open items for later milestones per the roadmap, not solved here.
+Per the Architecture v1.1 roadmap (`docs/M2_SYSTEM_DESIGN.md` §D), E005 was
+tested as a single pre-registered variant (erase-all) rather than all three
+variants the roadmap table lists (supersede-conflicting [default], demote,
+erase-all); the human decision after seeing the erase-all result was to
+REVERT and not test the remaining variants for now, rather than continuing
+E005. The next experiment per the roadmap's E001–E006 sequence is therefore
+**E006 — Adaptive attribute selection** (M5 — Conversation Intelligence):
+"Choosing the attribute that best partitions the current candidate pool
+beats a fixed order," with `ask_attribute` selection derived from
+runtime/catalog-side facet pool partitioning rather than the fixed E002
+`_ASK_SEQUENCE`, primary metric MTTC/Efficiency, everything else (E001
+retrieval, E003 evidence accumulation, E004 reranking) held frozen. The
+architecture's supersede-conflicting default override policy remains an
+open, untested item — not solved, not scheduled — should the roadmap or a
+human decision revisit intent override later. E003's oldest-first 40-term
+cap, append-only evidence contamination, and E004's generic-token/scaffold
+coverage limitations remain open items for later milestones per the
+roadmap, not solved here.
 
 # Open Questions
 

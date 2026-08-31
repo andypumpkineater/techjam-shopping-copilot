@@ -527,3 +527,135 @@ Smoke-test note:
 Two issues discovered during validation were bugs in the temporary test
 harness/fixtures, not in starter/agent.py. They were corrected before the
 official evaluator run; final smoke tests all passed.
+
+## E005 — Explicit Intent Override Reset
+
+Status: REVERT
+
+Milestone:
+M5 — Conversation Intelligence
+
+Hypothesis:
+When the runtime user explicitly replaces their prior intent, discarding
+pre-override accumulated evidence before retrieval may improve performance
+over E004's append-only evidence state.
+
+Tested policy:
+
+Override detector:
+
+`ignore\s+(?:my|our)\s+(?:earlier|previous|prior)\s+preferences?`
+
+case-insensitive, operating only on runtime `user_message`.
+
+On detection:
+
+- erase all pre-override session evidence;
+- append the current override message as the new evidence root;
+- build the same turn's query from the reset evidence state;
+- resume normal E003 accumulation afterwards.
+
+No scenario labels, ground truth, target ids, hidden fields, or adaptive
+logic were used.
+
+Frozen:
+- E001 retrieval
+- E002 clarification sequence
+- E003 normal evidence admission/accumulation
+- E004 coverage reranking
+
+Files Changed:
+- starter/agent.py
+
+Evaluation Command:
+python -m evaluator.local_evaluator
+
+E004 baseline:
+
+HitRate@10: 0.835
+MRR: 0.518149
+MTTC: 5.01
+Efficiency: 0.599
+TechnicalScore: 0.692745
+
+E005 result:
+
+HitRate@10: 0.795
+MRR: 0.455204
+MTTC: 5.5
+Efficiency: 0.55
+TechnicalScore: 0.644061
+
+Delta vs E004:
+
+HitRate@10: -0.040000
+MRR: -0.062945
+MTTC: +0.49 (worse / later first hits)
+Efficiency: -0.049000
+TechnicalScore: -0.048684
+
+Scenario metrics:
+
+buying:
+HR@10: 0.8625
+MRR: 0.494782
+MTTC: 4.3375
+
+browsing:
+HR@10: 0.825
+MRR: 0.474727
+MTTC: 5.3125
+
+intent_override:
+HR@10: 0.533333
+MRR: 0.257672
+MTTC: 8.466667
+
+boundary:
+HR@10: 0.8
+MRR: 0.575
+MTTC: 7.4
+
+Mechanism check:
+
+buying, browsing, and boundary remained bit-identical to E004.
+
+Only intent_override changed materially, and it regressed:
+
+E004 intent_override:
+HR@10: 0.8
+MRR: 0.677302
+MTTC: 5.2
+
+E005 intent_override:
+HR@10: 0.533333
+MRR: 0.257672
+MTTC: 8.466667
+
+Decision:
+REVERT.
+
+Interpretation:
+
+The experiment rejects the tested ERASE-ALL override policy.
+
+Do NOT interpret this as evidence that intent-override semantics are
+unnecessary.
+
+The supported conclusion is narrower:
+
+removing all pre-override evidence destroys useful accumulated retrieval /
+ranking signal strongly enough to outweigh any benefit from eliminating
+stale conflicting evidence.
+
+A future override-aware system would need finer-grained treatment such as
+preserving useful non-conflicting evidence while superseding conflicting
+evidence.
+
+That more semantic policy was NOT tested here.
+
+Do not claim it would necessarily improve performance.
+
+Next:
+E006 — Adaptive attribute selection (per Architecture v1.1 roadmap; current
+best system remains E004).
