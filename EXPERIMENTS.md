@@ -3310,3 +3310,256 @@ as declared in the preregistration's "Explicitly out of scope" section. Any
 further capability experiment — including E013+E014 bundled, or a further pool
 depth beyond 100 — requires separate explicit human authorization and its own
 preregistration.
+
+## E013 — Resolution/Clarification Coupling (clause-level evidence units + front-loaded `other`)
+
+Status: **PREREGISTERED** (written and committed before any implementation)
+
+Type: E / Agent Experiment. Changes runtime behavior; decided by one official
+evaluator run.
+
+Classification: human-approved post-Architecture-v1.1 experiment, the sixth
+after E007, E008, E010, E011 and E012. Authorized by the human decisions
+recorded in PROJECT_STATE.md ("Algorithm freeze lifted (2026-09-01)") and by
+the 2026-09-01 authorization block in the post-E011 ranking-bottleneck audit
+(Artifact `37161e21-a312-460f-b389-030f8e45e3c8`, §10 E013 card and §"已决"),
+which selected clarification option **(b)** — first two turns `other`, then
+hand back to E006 — and explicitly authorized modifying the existing test
+`tests/test_agent.py::test_an_attribute_is_never_asked_twice_in_one_session`.
+
+Baseline: **E012 — Candidate Pool Expansion 50 -> 100**, on top of E011 + E010 +
+E006 + M6. TechnicalScore 0.818056 (HR@10 0.965, MRR 0.623520, MTTC 3.575,
+Efficiency 0.7425). Per-session snapshot: `docs/diagnostics/E012_SESSIONS.json`
+(added in this same preregistration commit — E012 earned a snapshot on KEEP but
+one was not written at the time; the file is `results_e012.json` committed
+verbatim, unedited).
+
+### THIS IS ONE INDIVISIBLE EXPERIMENT — the bundling evidence, up front
+
+The two changes below **must not be split into two experiments**. The audit's
+own offline full-dynamic replay measured the complete 2x2, all four arms on top
+of the same E012 pool-100 baseline:
+
+| Configuration (all on top of E012, pool 100) | Offline TS | vs E012 | Under a per-change decision rule |
+|---|---:|---:|---|
+| E012 alone | 0.818056 | — | — |
+| + clause splitting alone | 0.813864 | **-0.0042** | would REVERT |
+| + first-two-turns `other` alone | 0.816368 | **-0.0017** | would REVERT |
+| + **both together** | **0.839220** | **+0.0212** | KEEP |
+
+**Each change alone is negative. Together they are +0.0212. The interaction term
+is +0.0271.** Running them as two sequential experiments would REVERT the first
+on -0.0042 and, by the discipline established at E007 and E011 ("do not test a
+second value if the first fails"), would also cancel the second — permanently
+closing a +0.0212 path. That is the same ordering error E007 made, in a less
+visible form.
+
+This is therefore declared, following the E011 precedent ("The coupled change
+that cannot be separated — declared, not hidden"), as a **single minimal
+indivisible experiment unit decided by exactly one official evaluator run**, not
+as two variables silently bundled.
+
+**Discipline note on the source of that table.** Those four numbers are offline
+replay arms run during a read-only audit. Per the audit's own §13 risk 2, they
+are admissible **only as the justification for this preregistration's bundling
+and expected channels** — they are not improvement evidence and do not
+substitute for the single official run mandated below.
+
+### Hypothesis
+
+The mechanism claim is that the E004 rule "one admitted message = one evidence
+unit" artificially caps the **resolution** of the ranking score, and that this
+cap is what prevents faster information acquisition from converting into ranking
+gain.
+
+Concretely, under E010's proximity scoring each evidence unit contributes only
+its single longest matching n-gram. The published simulator packs up to two
+disclosed constraints into one reply
+(`"For that, what matters is: A; B."`, `evaluator/local_evaluator.py:185`), so
+two independent constraints collapse into one unit and can contribute only one
+n-gram between them. Splitting on clause boundaries gives each disclosed
+constraint its own unit.
+
+That alone is not enough, and alone it is negative: with the existing E006
+clarification schedule the agent acquires constraints slowly, so the extra
+resolution mostly amplifies early, partial evidence. Conversely, acquiring
+constraints faster alone is also negative: `other` returns two constraints in a
+single message, which the one-message-one-unit rule then collapses back into a
+single n-gram, so the extra information is discarded at the point of scoring.
+
+**Hypothesis:** resolution and acquisition speed are complements, not additive
+terms. Releasing both simultaneously lets each cash in — HR@10 up, MTTC down
+sharply, and MRR up (not merely flat), because each disclosed constraint now
+scores independently against the pool.
+
+### Coupled change (exactly these two, declared as one unit)
+
+1. **Clause-level evidence units.** `_evidence_units()` and
+   `_evidence_token_lists()` split each admitted message into clauses **before**
+   `_terms()`, on `[;:.!?•]` and `", "`. If a message yields no non-blank
+   clause, the whole message is used as the single clause (fallback). Units that
+   still tokenize to nothing are dropped, exactly as today. Both functions use
+   the identical splitter so they stay aligned one-to-one, which the E010
+   proximity path requires.
+2. **Front-loaded `other` clarification (audit option (b)).**
+   `_select_attribute()` returns `"other"` on turns 1 and 2, and on turn >= 3
+   hands back to the existing E006 adaptive logic unchanged. The
+   `_asked_attributes` bookkeeping is unchanged: the chosen attribute is still
+   recorded on every turn, so turn 2 asking `other` a second time is a genuine
+   repeat and is intended (see "What this breaks" below). `_select_attribute()`
+   gains a `turn` parameter; `respond()` already has it.
+
+### Frozen (unchanged)
+
+`POOL_DEPTH = 100` and the 70/30 primary/insurance composition; BM25 field
+weights and expression; `TOKEN_RE`, `STOPWORDS`, `_terms()` itself; the 40-term
+cap; the contract `top_k`; category detection, hierarchy and relaxation;
+`N_MAX = 4` and the proximity formula; the lexicographic sort key
+`(proximity, coverage, incoming order)` and its stable sort; **E003 evidence
+admission** — the information-free template filter and what gets appended to the
+session transcript are untouched, only how an already-admitted message is
+subdivided changes; the E006 adaptive scoring, vocabularies and fallback order
+for turns >= 3; M6 memoization semantics; override and boundary handling (still
+none). No embeddings, no LLM, no new dependency, no network.
+
+### Expected channels — and what would be a warning
+
+HR@10 up, MTTC down hard (3.575 -> 2.655 offline), MRR **up**
+(0.623520 -> 0.6411 offline). Offline landing point TS 0.839220.
+
+**Warning signal:** if MTTC does not fall substantially, `other` is not being
+taken up — check that `ask_attribute` is actually reaching the simulator and
+that the returned value is inside `ALLOWED_ATTRIBUTES`. A TS gain without the
+MTTC move would mean the mechanism explanation is wrong even if the number is
+favourable.
+
+As with E011 and E012, session membership and trajectory change by
+construction, so `invariant_check compare --expect ranking-only` **will fail by
+design and must not be used as a gate.**
+
+### Systemic consequence — this is not a per-turn change
+
+Changing turn 1's question changes turn 1's disclosure, which changes the
+accumulated evidence, which changes the BM25 expression, the pool, the Top-10,
+and every subsequent question. The offline numbers above come from a **full
+dynamic replay** with the trajectory allowed to diverge (the same replay core
+validated bit-exactly against the official evaluator at E011 and again at E012),
+so they already contain these couplings. They are still a prediction.
+
+### Generalization / overfitting risk — **medium**, declared explicitly
+
+Higher than E012's, and stated rather than buried:
+
+- **The clause splitter's `;` is exactly the separator the simulator uses to
+  join two constraints** (`"; ".join(matches)`, `evaluator/local_evaluator.py:185`).
+  The regex was not reverse-engineered from that line alone — `;:.!?•` and
+  `", "` are ordinary English clause boundaries and the same split would
+  subdivide free-form human text — but the fact that one delimiter coincides
+  with the simulator's own join character is a real coupling and is disclosed
+  here.
+- **`other` directly exploits the wildcard branch of `customer_reply()`**
+  (`attribute == "other"` bypasses `classify_constraint()` filtering,
+  `evaluator/local_evaluator.py:180`).
+
+Mitigation and standing arguments, recorded in advance so they are not
+constructed after seeing the result:
+
+- FAQ §1 states the final evaluation uses the same deterministic templates with
+  no undisclosed paraphrasing, and FAQ §5 states the simulator responds to the
+  structured `ask_attribute` field. The generalization story for both halves is
+  officially underwritten, in writing.
+- The project already depends on this class of coupling: E003 copies the
+  evaluator's information-free template prefixes verbatim, and E006's attribute
+  vocabularies are reasoned from `classify_constraint()`.
+- By the project's own M2 rule #3 (the attribute-yield distribution may not be a
+  design input), `other` requires **no** prior at all — it is the maximum-entropy
+  question, not a tuned one.
+- **Narrative obligation, set now:** if this is KEPT, the final report must
+  present the `other` half as the product insight it actually is — *open-ended
+  questions outperform narrow ones because most user constraints do not fall
+  into any single attribute category* — **and** must disclose its dependence on
+  `customer_reply()` semantics in the same place. Not one without the other.
+
+### What this breaks — declared, not discovered later
+
+`tests/test_agent.py::test_an_attribute_is_never_asked_twice_in_one_session`
+**will fail** and is revised as part of this experiment.
+
+That test encoded "never repeat a question" as if it were a contract
+requirement. It is not: neither `docs/agent_api_contract.json` nor
+`evaluator/local_evaluator.py` prohibits asking the same attribute twice —
+`customer_reply()` simply returns "I don't have an additional preference for
+{attribute}." when a repeated attribute has nothing left to disclose, which
+`_is_information_free()` already filters out of evidence. The test asserted a
+self-imposed policy from E002, not an external constraint.
+
+**The human authorized this test revision on 2026-09-01** (audit §"已决", row
+"既有测试"), on condition that it be recorded explicitly alongside the
+preregistration rather than changed quietly. This section is that record.
+
+The revision: the test is renamed/rewritten to pin what is actually required —
+that every returned `ask_attribute` is a contract-legal value or `None`, that
+turns 1 and 2 ask `other`, and that from turn 3 onward no *specific* attribute
+repeats within a session (the E006 `_asked_attributes` bookkeeping still holds).
+The old single-assertion no-repeat invariant is deleted, not weakened in place,
+and this paragraph is the reason. No other test is modified.
+
+### Procedure (preregistered, in order)
+
+1. This preregistration is committed **before** implementation, together with
+   `docs/diagnostics/E012_SESSIONS.json`.
+2. Implement exactly the two coupled changes; confirm via `git diff` that no
+   other behavior line changed (`POOL_DEPTH`, the sort key, the proximity
+   formula, and E003 admission must be byte-identical).
+3. Revise the one authorized test; run the full test suite.
+4. Exactly **one** official evaluator run:
+   `python3 -m evaluator.local_evaluator --output results_e013.json`
+5. D-5 paired delta vs the tracked E012 per-session snapshot, with
+   `--show-sessions`; report the migration matrix **before** discussing
+   KEEP/REVERT.
+6. Report MRR and MTTC movements **separately and explicitly**. Reporting only
+   the composite TechnicalScore is not acceptable for this experiment.
+7. Report the measured result against the offline prediction (TS 0.839220,
+   HR@10 0.960, MRR 0.6411, MTTC 2.655) as a comparison, not a substitute.
+
+### Decision rule (preregistered)
+
+- **KEEP** if and only if **all three** hold:
+  (a) TechnicalScore gain **>= 0.010** over 0.818056 (i.e. >= 0.828056);
+  (b) **no** scenario bucket's HitRate@10 falls by more than 0.05 versus E012's
+  per-scenario values (buying 0.9625, browsing 0.9875, intent_override 0.9,
+  boundary 1.0);
+  (c) D-5 shows **no** hit->miss cluster.
+- **REVERT** otherwise — including a TechnicalScore gain smaller than 0.010,
+  which per the audit's §13 risk 4 (n=200, no variance estimate; a ~0.021 TS
+  move is only ~7 sessions) is not distinguishable from noise and does not
+  justify the coupling and overfitting risk taken on here.
+- A single isolated hit->miss session is not a cluster; a concentration within
+  one scenario bucket is.
+- On REVERT, restore E012 in full — **both** halves, plus the original test —
+  and stop. Do not re-run either half separately, do not tune the clause regex,
+  and do not try a different `other` turn count without a new, separately
+  authorized preregistration.
+
+### Interpretation set in advance
+
+- **Success** establishes that the measured bottleneck after E012 was *score
+  resolution*, not recall and not the ranking rule, and that resolution and
+  acquisition speed only pay off jointly. It also converts the audit's
+  interaction-term finding from an offline observation into a confirmed
+  property of the scored system.
+- **Failure** would mean the interaction term does not survive the official
+  evaluator, i.e. that the offline replay — which predicted E011 and E012
+  bit-exactly — breaks down specifically where the agent's own questions change
+  the trajectory. That is a substantive and worth-recording finding about the
+  replay methodology itself, not merely a null result, and it would also close
+  the last identified reachable-gain direction.
+
+### Explicitly out of scope
+
+Pool depth beyond 100; the 70/30 composition; `N_MAX`; tie-break sort keys
+(the audit priced a real-BM25 third key at only +0.0029 and declared the
+tie-collapse headroom unreachable with current lexical signals); any semantic /
+embedding / LLM signal (the human's 2026-09-01 "no model/API" decision stands);
+`intent_override` semantics; `user_profile` personalization; re-running D012.
+None of these may be added if E013 underperforms.
