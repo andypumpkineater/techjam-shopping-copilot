@@ -204,6 +204,7 @@ def replay(
     agent: Agent,
     probe: Callable[[ProbeContext], dict] | None = None,
     progress: bool = True,
+    message_transform: Callable[[str, str, int], str] | None = None,
 ) -> Iterator[SessionTrace]:
     """Replay the published simulator offline against a real Agent instance.
 
@@ -219,6 +220,16 @@ def replay(
     conservative direction. Do not "fix" this by playing extra turns: the
     disclosure stream depends on the agent's own ask_attribute choices, so those
     turns would not exist under the counterfactual either.
+
+    `message_transform` (D012) is an OPTIONAL, additive hook applied to the
+    simulator's `user_message` immediately before it reaches `Agent.respond()`,
+    with signature `(message, sample_id, turn) -> str`. It exists so a paraphrase
+    stress test can perturb what the agent hears WITHOUT touching evaluator code:
+    the simulator's own state machine (`disclosed`, `boundary_used`, `override`)
+    consumes nothing downstream of this point and is unaffected. It is deliberately
+    given the message text only -- no sample, no product, no target -- so it cannot
+    become a ground-truth channel. Left at None, this function is byte-for-byte the
+    replay D-1/D-2/D-3/invariant_check have always used.
     """
     for index, sample in enumerate(samples, start=1):
         # Deterministic per-sample session id: reruns are byte-comparable.
@@ -248,7 +259,10 @@ def replay(
         )
 
         for turn in range(1, MAX_TURNS + 1):
-            response = agent.respond(session_id, user_message, turn, TOP_K)
+            delivered = user_message
+            if message_transform is not None:
+                delivered = message_transform(user_message, sample["sample_id"], turn)
+            response = agent.respond(session_id, delivered, turn, TOP_K)
             ranked = normalize_recommendations(response.get("recommendations"), catalog_ids)
             expression, terms, cap_hit = rebuild_expression(agent, session_id)
             messages = list(agent._sessions[session_id])
@@ -262,7 +276,7 @@ def replay(
                 n_terms=len(terms),
                 term_cap_hit=cap_hit,
                 n_evidence_units=len(messages),
-                user_message=user_message,
+                user_message=delivered,
             )
             if probe is not None:
                 ctx = ProbeContext(

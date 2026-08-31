@@ -2040,9 +2040,25 @@ would reveal that. If D012 shows the gain survives paraphrase, the next
 candidate is a separately preregistered look at whether pool depth is now worth
 revisiting given a ranker that can exploit it.
 
+> **Superseding note (2026-08-31).** The paragraph above is retained as written
+> and is the chronological record of what was decided at E010's close. It is
+> **superseded**: D012 was preregistered, built, and **CANCELLED without ever
+> being run to a result** after the official FAQ
+> (`docs/final_evaluation_faq.md`, upstream `9c9e7c9`) §1 stated that the final
+> 800 samples use the same deterministic customer-message templates as the
+> published evaluator and that "No undisclosed natural-language paraphrases are
+> introduced." There is no D012 result and no D012 number may be cited — see
+> "D012 — Paraphrase Stress", Cancellation. The conditional second sentence
+> therefore never resolved through D012; pool depth (E011) became the next
+> candidate directly, on D-2 oracle evidence rather than on a D012 outcome.
+> `N_MAX` remains frozen: the FAQ said nothing about n-gram length. This note
+> does not rewrite E010's record, which stands as run and KEPT.
+
 ## D012 — Paraphrase Stress
 
-Status: **PREREGISTERED** (this section committed before any code was written)
+Status: **CANCELLED** — premise falsified by the official FAQ before the
+diagnostic was ever run. See "Cancellation" at the end of this section.
+Originally: **PREREGISTERED** (this section committed before any code was written)
 
 Type: **R / Diagnostic. NOT an Agent Experiment.**
 
@@ -2314,4 +2330,87 @@ family produces an uninteresting curve, that is a reported result.
 
 ### Results
 
-*(to be filled in after the run; nothing above this line may change)*
+**None. The diagnostic was cancelled before it produced any result.** This
+section is left empty deliberately: there is no D012 number, and any figure that
+appears to be one is an artifact of aborted development work, not a result.
+
+### Cancellation (2026-08-31)
+
+**Status: CANCELLED (premise falsified by official FAQ §1, upstream `9c9e7c9`,
+2026-08-31).**
+
+The organizers published `docs/final_evaluation_faq.md` (upstream `9c9e7c9`)
+after this preregistration was committed. Its §1 states that the final 800-sample
+evaluation uses **the same deterministic customer-message templates as the
+already-published evaluator**, and that *"No undisclosed natural-language
+paraphrases are introduced."*
+
+That is a direct answer to the question D012 was built to ask. D012's entire
+value rested on one assumption — that the private set might reword user messages
+in ways the 200 public sessions cannot reveal. The organizers have now stated
+that it does not. The risk D012 was designed to measure **does not exist in the
+final evaluation**, so running it would spend roughly half an hour of compute to
+quantify the sensitivity of a ranking rule to an input distribution that will
+never be presented to it.
+
+This is a change in external information, **not** a defect in the design, the
+tooling, or E010. Nothing about the preregistration was found to be wrong.
+
+**What was built, and what was and was not run.** The tooling is complete and its
+invariants are tested:
+
+- `tools/diagnostics/_paraphrase.py` — the frozen rewriter, implementing the
+  specification above exactly
+- `tools/diagnostics/d012_paraphrase_stress.py` — the driver
+- `tools/diagnostics/_replay.py` — one additive, optional, default-`None`
+  `message_transform` hook
+- `tests/test_paraphrase.py` — 12 property tests, all passing
+
+Executed during development, and **not** citable as results: a 20-session smoke
+run, and a full sweep that was aborted after 5 of its 12 configurations. Neither
+was recorded, no `docs/diagnostics/D012_*.json` snapshot was ever written, and
+**no number from either may be quoted, in this repository or anywhere else.** A
+20-session sample cannot support any of the preregistered verdicts, and the
+aborted sweep never reached its decision rule. The results section above is empty
+and stays empty. D012 was **not** downgraded to a small-sample run to salvage a
+finding; a cancellation is a cancellation.
+
+**The preregistration is retained, not deleted.** Everything above the "Results"
+heading is byte-identical to commit `600381e`, with the single exception of the
+two-line status header at the top of this section, which points here. The design,
+the frozen rewriter specification, the a priori bias table, the four validity
+gates, and the decision rule are unedited. Retaining them records that the risk
+E010 flagged was taken seriously enough to be designed against and frozen before
+testing, and that it was retired by evidence rather than by neglect.
+
+**Consequence for E010: none.** E010 remains KEPT on its official-evaluator
+result (TechnicalScore 0.743145). D012 was never able to revert it — the
+preregistered authority limit above says so explicitly — and it now has no
+finding of any kind. The paraphrase-brittleness risk recorded in E010's "Not
+established" list and in PROJECT_STATE.md's Open Question 1 is **retired by the
+official FAQ**, not by this diagnostic.
+
+**Residual value as future work.** The tooling is kept rather than reverted, for
+three reasons:
+
+1. The `message_transform` hook is a general capability: any future question of
+   the form "how does the system behave when the input stream is perturbed"
+   (truncation, noise, a different simulator) now costs a callable rather than a
+   new replay implementation.
+2. If the organizers ever revise the FAQ, or if this work is carried to a setting
+   with real user messages, D012 can be run as specified with no redesign — the
+   preregistration is already frozen, which is the expensive half.
+3. The frozen-rewriter discipline (specification committed before code, a priori
+   bias declared before running, a placebo arm, a vocabulary-closure invariant)
+   is a reusable pattern for any future diagnostic whose instrument could
+   otherwise be tuned to produce its own answer.
+
+**Verification that cancelling changed nothing.** `starter/agent.py` is
+untouched — SHA-256 `ec58f9f4cf0fea1e225e56e9e3d977334f88723c77e38b7928294abaf25e43a1`,
+identical to E010. `evaluator/`, the frozen catalog, and the public labels are
+untouched. With `message_transform` unset, the patched `_replay.py` reproduces
+the pre-patch replay exactly: a post-patch full D-3 run at pool 10 returned
+`[observed]` 0.743145, `bm25` 0.682001, `cov` 0.686346, `phrase_n4` 0.717027 —
+bit-identical to the E010 prescreen table recorded above. No official evaluator
+run was performed in this cycle, and none was warranted: there is no runtime
+change for one to measure.

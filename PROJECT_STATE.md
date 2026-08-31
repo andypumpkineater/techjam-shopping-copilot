@@ -260,10 +260,21 @@ received new logic), or that E008's conclusion is overturned (E008 rejected
 candidate-local IDF as a tiebreak *under* coverage; E010 replaces the
 primary key with a different signal class — the two are not in competition).
 
-**Most important open risk:** a rule keyed on contiguous n-grams is a priori
-more paraphrase-sensitive than the bag-of-words rule it replaced, and the
-public set cannot detect that. The D012 paraphrase stress test remains
-**unrun** and is now the highest-value next diagnostic.
+**That open risk is now retired.** E010 was kept with one named scoring risk:
+a rule keyed on contiguous n-grams is a priori more paraphrase-sensitive than
+the bag-of-words rule it replaced, and the public set could not detect it. The
+official FAQ (`docs/final_evaluation_faq.md`, upstream `9c9e7c9`) §1 states that
+the final 800 samples use the same deterministic customer-message templates as
+the published evaluator, and that "No undisclosed natural-language paraphrases
+are introduced." The D012 paraphrase stress test was preregistered, built, and
+then **CANCELLED without ever being run to a result** (EXPERIMENTS.md, "D012 —
+Paraphrase Stress", Cancellation). There is no D012 number and none may be
+cited. The highest-value next investigation is now **E011 — candidate pool
+depth**, which has actual D-2 oracle support: pool 100 prices a perfect-reranker
+ceiling of 0.9609 against 0.7672 at pool 10, and E010 is capped by the top-10 it
+reorders (ceiling +0.093726, of which 41.8% is captured). E011 requires its own
+preregistration and human authorization; E007's pool expansion failed under the
+old ranker for reasons E010 does not address, so this is not a re-run of E007.
 
 E007 remains REVERTED. E008 remains REVERTED. E010 is KEPT. Algorithm
 development is not frozen; further post-v1.1 experiments still require
@@ -550,10 +561,16 @@ deferred.
   receive coverage credit through an attribute-name or conversational
   scaffold word without matching the actual disclosed value (E004). E010
   demotes coverage to a tiebreak, which reduces but does not remove this
-- **paraphrase sensitivity is unmeasured and is E010's main risk**: ranking
-  on contiguous n-grams is a priori more brittle to rewording than the
-  bag-of-words rule it replaced, and the public set cannot detect this. The
-  D012 paraphrase stress test remains unrun
+- **paraphrase sensitivity is unmeasured — a real-world/product limitation,
+  no longer a scoring risk**: ranking on contiguous n-grams is a priori more
+  brittle to rewording than the bag-of-words rule it replaced. The official FAQ
+  §1 retires this as a *scoring* risk by guaranteeing that the final 800 samples
+  introduce no undisclosed natural-language paraphrases, and D012 was cancelled
+  unrun on that basis. Note precisely what was retired: the question "will the
+  private set reword?" (answered: no), **not** the question "is the mechanism
+  robust to rewording?" (still unmeasured, and would matter immediately against
+  real users). Keep this for the final report's Limitations section — the tooling
+  to measure it exists and is frozen (`tools/diagnostics/_paraphrase.py`)
 - E010's proximity score is unnormalized by candidate text length, so a
   verbose product has more surface in which to contain a phrase; no length
   penalty was tested
@@ -623,11 +640,13 @@ chronological record and its older present-tense statements are superseded):
 E010 — Proximity-aware Reranking is KEPT and is the current best system
 (TechnicalScore 0.743145). `starter/agent.py` carries E010 on top of
 E006 + M6. Next milestone is M7 — Submission, still deferred pending the
-human's direction. The highest-value next investigation is D012 (paraphrase
-stress), because E010's contiguous-n-gram ranker is structurally more
-exposed to rewording than the bag-of-words rule it replaced and the public
-set cannot detect that. Algorithm development is not frozen; further
-post-v1.1 experiments still require explicit human approval.**
+human's direction. D012 (paraphrase stress) was preregistered, built, and
+CANCELLED unrun after the official FAQ §1 retired the risk it measured; it has
+no result and none may be cited. The highest-value next investigation is now
+E011 — candidate pool depth, the one open direction carrying real D-2 oracle
+support (pool 100 ceiling 0.9609 vs 0.7672 at pool 10, with E010 capped by the
+top-10 it reorders). Algorithm development is not frozen; further post-v1.1
+experiments still require explicit human approval.**
 
 M5 — Conversation Intelligence is complete: E005 (erase-all override reset)
 REVERTED, E006 (adaptive catalog-side clarification) KEPT. The
@@ -696,11 +715,27 @@ and the frozen-trajectory replay predicted the official result bit-exactly.
 # Open Questions
 
 
-1. **Does E010's gain survive paraphrase?** Highest priority. A
-   contiguous-n-gram ranker is structurally more exposed to rewording than
-   the bag-of-words rule it replaced, and the 200 public sessions cannot
-   detect brittleness. D012 (paraphrase stress) is designed but unrun. This
-   should be answered before any further ranking work.
+1. ~~**Does E010's gain survive paraphrase?**~~ **RETIRED BY OFFICIAL FAQ §1**
+   (`docs/final_evaluation_faq.md`, upstream `9c9e7c9`, 2026-08-31): the final
+   800 samples use the same deterministic customer-message templates as the
+   published evaluator, and "No undisclosed natural-language paraphrases are
+   introduced." D012 was preregistered, built, and cancelled without ever being
+   run to a result; there is no D012 number and none may be cited.
+   **The block this question placed on further ranking work is lifted** — its
+   "should be answered before any further ranking work" no longer applies.
+   Two limits on that release, both binding:
+   - It unblocks the **pool-depth direction only** (question 3 below, E011).
+     It is not a general licence to resume ranking changes.
+   - **`N_MAX` stays frozen. Question 2 does NOT unfreeze.** The FAQ said
+     nothing about n-gram length, and E010's `N_MAX = 4` was preregistered
+     before results were seen. Changing it now would be tuning a parameter
+     after seeing its result, on the public set — exactly the hill-climbing
+     `CLAUDE.md` and the D-3 discipline forbid. Any `N_MAX` change still needs
+     a separately authorized preregistration.
+   What survives is a non-scoring limitation: whether the *mechanism* is robust
+   to rewording is still unmeasured and belongs in the final report's
+   Limitations, not in the scoring risk register (see "Known Baseline
+   Weaknesses").
 2. Is `N_MAX = 4` the right length? Preregistered and frozen for E010; no
    other value has been run officially. R009's counterfactual suggested n=3
    captures ~84% of n=8, but that is fixed-trajectory diagnostic evidence.

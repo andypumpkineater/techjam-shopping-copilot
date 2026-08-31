@@ -43,6 +43,7 @@ the BM25 weighting the diagnostics reconstruct.
 | `d3_counterfactual_bench.py` | Would this ranking rule have helped — without spending an official run? |
 | `d5_paired_delta.py` | What actually moved between two official runs, session by session? |
 | `invariant_check.py` | Did the code really change only what the preregistration claimed? |
+| `d012_paraphrase_stress.py` | **CANCELLED — built, never run, no citable result.** Does a ranking rule's *advantage* survive reworded user messages? |
 
 `_replay.py` is the shared session-replay core. All of D-1/D-2/D-3 and the
 invariant checker use it, so a change there affects every diagnostic
@@ -71,6 +72,11 @@ python3 -m tools.diagnostics.d3_counterfactual_bench --pool 60 \
 python3 -m evaluator.local_evaluator --output results_myexperiment.json
 python3 -m tools.diagnostics.d5_paired_delta \
     docs/diagnostics/E010_SESSIONS.json results_myexperiment.json --show-sessions
+
+# D012  paraphrase stress -- CANCELLED, see "D012 discipline" below before running
+python3 -m tools.diagnostics.d012_paraphrase_stress --limit 20          # smoke
+python3 -m tools.diagnostics.d012_paraphrase_stress \
+    --json docs/diagnostics/D012_PARAPHRASE_STRESS.json
 
 # invariant check for a ranking-only experiment
 python3 -m tools.diagnostics.invariant_check dump --out trace_before.json
@@ -114,6 +120,53 @@ strictly less sensitive than the aggregate scores already published in
 Note that `E006_M6_BASELINE.json` is a different artifact: it holds R009's
 curated aggregate metrics and diagnostic tables, and has **no** `sessions`
 array, so D-5 cannot run against it.
+
+## D012 discipline -- CANCELLED, and the rewriter is frozen
+
+**D012 was cancelled on 2026-08-31 and has no result.** The official FAQ
+(`docs/final_evaluation_faq.md`, upstream `9c9e7c9`) states in section 1 that the
+final 800-sample evaluation uses the same deterministic customer-message
+templates as the published evaluator, and that "No undisclosed natural-language
+paraphrases are introduced." That falsifies the one assumption D012 exists to
+test, so the risk it measures does not exist in the final evaluation.
+
+The tool was built and its invariants are tested, but it was **never run to a
+result**: only a 20-session smoke run and a sweep aborted after 5 of 12
+configurations, neither recorded. **No number it produces may be cited.** The
+"Results" section of `EXPERIMENTS.md`'s D012 entry is empty on purpose. Running it
+requires new human authorization and a fresh reading of the FAQ. The rest of this
+section documents the discipline that would apply if it ever is run.
+
+`_paraphrase.py` is the one component of D012 that could fabricate its own
+conclusion: a rewrite rule chosen to be unusually kind or unusually cruel to one
+scorer decides the answer before any session is replayed. Two rules hold it:
+
+1. **Every family, constant, and word list was written into `EXPERIMENTS.md`
+   ("D012 -- Paraphrase Stress") and committed *before* `_paraphrase.py`
+   existed.** None of it may be retuned after seeing a result. A family that
+   produces an uninteresting curve is a reported result, not a reason to retune.
+2. **The a priori bias of each family is declared in that same preregistration.**
+   Every content family is structurally harder on a contiguous-n-gram rule than on
+   a binary per-unit bag-of-words rule, and `shuffle` and `filler` are
+   bag-of-words-neutral *by construction*. D012 is therefore biased against the
+   phrase rule on purpose, which is exactly why its verdict reads the surviving
+   advantage `A(r) = TS(phrase_n4) - TS(cov)` rather than raw degradation.
+
+The rewriter receives `(message, sample_id, turn)` and nothing else -- no sample,
+no product, no target, no catalog handle -- and satisfies a runtime-checked
+vocabulary-closure invariant:
+
+    _terms(out) subset-of  _terms(in) | FILLER | {t+"s", t[:-1] for t in _terms(in)}
+
+so it cannot introduce information the user's own message did not already carry.
+That is the structural reason it cannot become a ground-truth channel.
+
+Read two limits with any D012 result. It is *mechanical perturbation* (order,
+morphology, omission, hedging), not semantic paraphrase -- no offline
+paraphraser is available under the no-network / no-new-dependency constraints, so
+synonym substitution is out of scope. And `cov`'s flat response is **saturation**,
+not bag-of-words virtue: it credits a unit whenever the candidate shares one token
+with it, so it has little dynamic range to lose under any perturbation.
 
 ## D-3 discipline
 
