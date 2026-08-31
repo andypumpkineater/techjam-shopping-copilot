@@ -22,8 +22,22 @@ _CATEGORY_LEVELS = ("full", "last2", "last1", "segment")
 _DETECTION_LEVELS = ("full", "last2", "last1")
 _DOMINANT_ROOT_THRESHOLD = 0.99
 
-PRIMARY_SLOTS = 7
-INSURANCE_SLOTS = 3
+# E011 — internal candidate-pool depth. Retrieval fills a POOL_DEPTH-deep pool,
+# the E010 proximity reranker orders it, and only then is it cut to the
+# contract's top_k (10). Preregistered at 50 as a single human-chosen value; it
+# is not swept and no second depth is tried if E011 fails. The contract top_k is
+# untouched — this depth is internal to candidate generation.
+POOL_DEPTH = 50
+
+# E011 — pool composition, holding E001's 70/30 primary/global-insurance ratio
+# at the new depth (was 7/3 out of a 10-deep pool that was also the output).
+# These are now pool capacities, not output slots: after E011 the reranker
+# chooses all 10 returned ids from the merged pool, so the global-insurance
+# guarantee is a property of pool composition rather than of the output. That
+# coupling is inseparable from pool expansion and is declared in the E011
+# preregistration rather than left implicit (E007 had it and did not disclose it).
+PRIMARY_SLOTS = 35
+INSURANCE_SLOTS = 15
 
 # E010 — longest contiguous evidence n-gram considered when scoring word-order
 # proximity. Preregistered at 4 before evaluation; not swept, not tuned after
@@ -503,13 +517,16 @@ class Agent:
         else:
             detected = self._detect_category(frozenset(unique_terms))
             if detected is None:
-                ids = self._unscoped_query(expression, top_k)
+                # E011 — both retrieval paths fill the same POOL_DEPTH-deep pool.
+                # Leaving this one at top_k would make retrieval depth depend on
+                # whether a category was detected, i.e. a hidden variable.
+                ids = self._unscoped_query(expression, POOL_DEPTH)
             else:
-                primary_slots = min(PRIMARY_SLOTS, top_k)
-                insurance_slots = min(INSURANCE_SLOTS, top_k - primary_slots)
+                primary_slots = min(PRIMARY_SLOTS, POOL_DEPTH)
+                insurance_slots = min(INSURANCE_SLOTS, POOL_DEPTH - primary_slots)
                 primary_ids = self._relaxed_primary_ids(detected, expression, primary_slots)
                 global_ids = self._unscoped_query(
-                    expression, max(top_k * 5, primary_slots + insurance_slots)
+                    expression, max(POOL_DEPTH * 5, primary_slots + insurance_slots)
                 )
                 ids = []
                 seen: set[str] = set()
@@ -526,21 +543,25 @@ class Agent:
                     ids.append(parent_asin)
                     seen.add(parent_asin)
                     added += 1
-                if len(ids) < top_k:
-                    # Primary route under-filled its 7 reserved slots (e.g. a
-                    # narrow scope that couldn't relax further). Backfill from
-                    # the same global BM25 results, past the 3 reserved
-                    # insurance slots, so the agent still returns top_k ids
-                    # whenever the catalog can supply them.
+                if len(ids) < POOL_DEPTH:
+                    # Primary route under-filled its 35 reserved pool slots
+                    # (e.g. a narrow scope that couldn't relax further).
+                    # Backfill from the same global BM25 results, past the 15
+                    # reserved insurance slots, so the pool still reaches
+                    # POOL_DEPTH whenever the catalog can supply it.
                     for parent_asin in global_ids:
-                        if len(ids) >= top_k:
+                        if len(ids) >= POOL_DEPTH:
                             break
                         if parent_asin in seen:
                             continue
                         ids.append(parent_asin)
                         seen.add(parent_asin)
-                ids = ids[:top_k]
-            ids = self._coverage_rerank(session_id, ids)
+                ids = ids[:POOL_DEPTH]
+            # E011 — rerank the whole pool, THEN cut to the contract top_k, so a
+            # strong candidate below pool rank 10 can be promoted into the
+            # returned ten. Under E010 the cut happened first, which is why
+            # reranking could only ever move MRR.
+            ids = self._coverage_rerank(session_id, ids)[:top_k]
             recommendations = [{"parent_asin": parent_asin} for parent_asin in ids]
         ask_attribute = self._select_attribute(session_id, ids)
         return {

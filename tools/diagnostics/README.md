@@ -71,7 +71,7 @@ python3 -m tools.diagnostics.d3_counterfactual_bench --pool 60 \
 #   Always pass two NAMED snapshots. See "Result snapshots" below.
 python3 -m evaluator.local_evaluator --output results_myexperiment.json
 python3 -m tools.diagnostics.d5_paired_delta \
-    docs/diagnostics/E010_SESSIONS.json results_myexperiment.json --show-sessions
+    docs/diagnostics/E011_SESSIONS.json results_myexperiment.json --show-sessions
 
 # D012  paraphrase stress -- CANCELLED, see "D012 discipline" below before running
 python3 -m tools.diagnostics.d012_paraphrase_stress --limit 20          # smoke
@@ -105,7 +105,8 @@ side must be reproducible. Two rules:
    | Snapshot | Agent |
    |---|---|
    | `E006_M6_SESSIONS.json` | E006 + M6 (TS 0.703974) |
-   | `E010_SESSIONS.json` | E010, current best (TS 0.743145) |
+   | `E010_SESSIONS.json` | E010 (TS 0.743145) |
+   | `E011_SESSIONS.json` | E011, current best (TS 0.796939) |
 
    These are the evaluator's own output, committed verbatim and never
    hand-edited. Each holds the 200-entry `sessions` array D-5 needs.

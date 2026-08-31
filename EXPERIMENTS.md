@@ -1995,6 +1995,18 @@ This is the largest single-experiment gain since E003, and the first ranking
 change since E004 to improve rather than regress MRR. New best system: **E010 —
 Proximity-aware Reranking**, running on top of E006 + M6.
 
+> **Superseding note (2026-08-31).** The "new best system" sentence above is the
+> chronological record as written at E010's close and is retained unedited. It is
+> **superseded**: E011 — Candidate Pool Expansion under a Proximity Reranker was
+> subsequently preregistered, implemented, evaluated once, and **KEPT**
+> (TechnicalScore 0.743145 → **0.796939**). The current best system is E011,
+> running on top of E010 + E006 + M6. E010 itself is not reverted or amended —
+> it still runs underneath E011 as the ranking rule, and E011 changed only pool
+> depth, pool composition, and the position of the `top_k` cut. Note that E011
+> returned **−0.027687** of E010's **+0.130570** MRR gain (21.2 %) in exchange for
+> +0.095 HitRate@10 and −0.730 MTTC, so E010's MRR figure above is no longer the
+> system's MRR. See "E011 — Candidate Pool Expansion under a Proximity Reranker".
+
 ### What this establishes, and what it does not
 
 **Established.** Within the candidate set the agent already returns, word-order
@@ -2018,6 +2030,9 @@ diagnostic finding that every bag-of-words re-weighting lands within ±0.02.
   100 moves the perfect-reranker ceiling from 0.767 to 0.961 — but that is an
   oracle bound, not a prediction, and E007 failed for reasons this experiment
   does not address. It would require a new preregistration.
+  *(Chronological record retained. This was subsequently tested: E011 got that
+  new preregistration, expanded the pool 10 → 50 under this ranker, and was KEPT
+  at +0.053794. The bullet stands as what was known at E010's close.)*
 - That intent override or boundary behavior is solved. Neither received any
   new logic; both buckets moved only through the shared ranking change, and
   intent_override holds the experiment's only regression.
@@ -2578,6 +2593,415 @@ variable. Any optimisation belongs to a separate, later change.
   that the pool-10 ceiling of 0.7977 is close to the practical limit of this
   architecture. That is a publishable finding for the report either way.
 
+### Deviations from the preregistration
+
+Two, both recorded rather than absorbed.
+
+**1. Step 5 (D-3 pool-50 prescreen) was dropped — human decision, 2026-08-31.**
+The preregistered procedure listed a D-3 counterfactual prescreen at pool 50
+"for context only". It was skipped as redundant: by that point a full 200-session
+replay of the *real* E011 agent had already produced every official metric, which
+strictly dominates D-3's fixed-trajectory counterfactual scorer — D-3 holds the
+dialogue constant and scores a hypothetical rule over its own unscoped BM25 pool,
+whereas the replay exercises the actual agent including the trajectory change that
+D-3 cannot model. A D-3 run had been started and was killed mid-execution; it
+produced no output. **There is no E011 D-3 number and none may be cited.**
+
+**2. The scoped path's global-BM25 fetch depth was rescaled with the pool.**
+Permitted change 1 named `POOL_DEPTH = 50` and capacities 35/15 but did not
+mention the global fetch that *sources* the insurance slots, written as
+`max(top_k * 5, primary_slots + insurance_slots)` = 50 under E010. `top_k` was
+substituted with `POOL_DEPTH` consistently, giving `max(POOL_DEPTH * 5, …)` = 250.
+
+**This is a necessary condition of pool expansion, not an incidental edit.** The
+global fetch is a *dependent* quantity of `POOL_DEPTH`, not an independent
+parameter, and the arithmetic forces it:
+
+- The primary route occupies up to `PRIMARY_SLOTS = 35` of the 50 pool slots.
+- The insurance branch then needs `INSURANCE_SLOTS = 15` global ids **after
+  deduplication against primary**.
+- When the primary route under-fills (a narrow scope that cannot relax further),
+  the backfill branch draws from the same global list and can need up to **50**
+  post-dedup ids to bring the pool to `POOL_DEPTH`.
+
+So the global list must be able to yield up to 50 ids *that are not already in
+primary*. A 50-deep fetch yields 50 ids **before** dedup, so every id it shares
+with the 35-deep primary list is one the pool can no longer reach — in the worst
+case it supplies as few as 15. The old value is therefore not merely conservative
+at the new depth, it is **structurally insufficient**: retaining it would leave
+`POOL_DEPTH` an aspiration rather than a guarantee, with the *actual* depth
+varying by how much the category-scoped and global rankings happen to overlap on
+a given turn. That is precisely the data-dependent hidden variable that permitted
+change 2 exists to prevent, and it would have silently biased against exactly the
+narrow-scope sessions pool expansion is meant to help. Scaling the source with the
+pool is what makes "the pool is 50 deep" a checkable property — which is why the
+preregistration's own step 3 could then verify it (119/119 turns at depth 50).
+
+The change is also monotone, which is why it carries no behavioral risk: a deeper
+fetch is identical to a shallower one whenever the shallower one sufficed, and
+differs only where the shallower one would have under-filled.
+
+**It was then measured rather than assumed.** Over **224 scoped turns the two
+fetch depths produce byte-identical pools** — 0 membership differences, 0 order
+differences, 0 under-fills either way. On the public set the 50-deep global list
+always had ≥15 ids outside the primary list, so insurance always filled and
+backfill never engaged. **The choice therefore had no effect on any E011 number
+reported below**; the public set never exercises the case it protects against. It
+is recorded as a deviation because the preregistration did not name it, and
+explained here because a reader must be able to see that it is entailed by
+`POOL_DEPTH = 50` rather than an unexplained third change.
+
+### Implementation
+
+Files changed: `starter/agent.py` only (36 insertions, 15 deletions). No
+evaluator, catalog, label, or diagnostic-tool change. SHA-256 moves from
+`ec58f9f4…f25e43a1` (E010) to
+`cb46d467a114c87ef002613219be45f509e7ecbc292af15858229e1d168d0d92`.
+
+Exactly the three permitted changes:
+
+1. `POOL_DEPTH = 50`; `PRIMARY_SLOTS` 7 → 35, `INSURANCE_SLOTS` 3 → 15 (the 70/30
+   ratio held), and the pool-assembly arithmetic retargeted from `top_k` to
+   `POOL_DEPTH` — including the backfill bound and the global fetch (see
+   Deviation 2).
+2. The unscoped path (`detected is None`) retrieves `POOL_DEPTH`, not `top_k`.
+3. `ids = self._coverage_rerank(session_id, ids)[:top_k]` — the cut to `top_k`
+   now happens **after** the rerank.
+
+Verified untouched by `git diff`: `N_MAX = 4`, `_unit_ngrams()`,
+`_proximity_score()`, `_product_stream()` and its cache, the lexicographic sort
+key, BM25 field weights, `_terms()`/`STOPWORDS`, the 40-term cap, E003 evidence
+admission, category detection and the relaxation ladder, `_select_attribute()`
+and its vocabularies, M6 memoization, and override/boundary handling (still none).
+
+**An observed coupling the preregistration did not name.** Asking the *same*
+relaxation ladder for 35 primary ids instead of 7 makes it climb more often, so
+the "primary" portion of the pool is drawn from a broader category level more
+frequently than under E010. Measured over 30 sessions: levels queried `last2` 109,
+`last1` 13, `segment` 4, `full` 1, at 1.07 ladder steps per scoped turn. No code
+governing relaxation was changed — this is intrinsic to a deeper primary capacity
+and inseparable from pool expansion, and is recorded here for completeness.
+
+### Mechanism validation (before the official run)
+
+23 smoke checks, all passing. The two that the preregistration specifically
+required:
+
+- **The pool is genuinely 50 deep.** `_coverage_rerank()` received exactly 50
+  candidates on **119/119** turns across 30 real sessions; `_relaxed_primary_ids()`
+  was asked for 35 on every scoped turn; a crafted unscoped-path message confirmed
+  `_unscoped_query(expression, 50)`.
+- **Truncation happens after reranking.** On **83/119 turns (70%)** the returned
+  top-10 contains at least one id that sat *below* pool rank 10 on entry —
+  impossible if the cut preceded the rerank.
+
+Also verified: rerank preserves membership and length; `_select_attribute()`
+receives exactly `rerank_out[:top_k]`, never the 50-deep pool; every turn returns
+≤10 deduped, valid catalog ids; punctuation-only evidence still returns no
+recommendations without crashing; `N_MAX` still 4 and unigrams still excluded.
+
+### Invariant check — descriptive, not a gate
+
+As preregistered, `--expect ranking-only` would FAIL here by construction and was
+**not** used as a gate. Run without `--expect`; 200 sessions, 706 comparable turns:
+
+| channel | E010 → E011 |
+|---|---|
+| candidate membership changed | **633 / 706** |
+| order changed (same set) | 0 / 706 |
+| `ask_attribute` changed | **248 / 706** |
+| target rank changed | 87 / 706 |
+| sessions with different `first_hit_turn` | 74 |
+| sessions with different turn count | 74 |
+
+`order changed (same set) = 0` is not a null result: on the 73 turns where
+membership held, ordering held too, so the whole ranked list was byte-identical
+there.
+
+**The genuine warning signal the preregistration named does not occur.** Cross-
+tabulating the two channels:
+
+| | ask identical | ask changed |
+|---|---|---|
+| **top-10 identical** | 73 | **0** ← the leak test |
+| **top-10 changed** | 385 | 248 |
+
+Zero turns changed `ask_attribute` while their top-10 stood still. Since
+`_select_attribute()` scores only the returned ids, such a turn could not arise
+through this mechanism and would have indicated a leak or an unintended edit.
+All 248 `ask_attribute` changes sit on turns whose candidate list also moved —
+the declared membership → `_select_attribute()` → disclosure → later-turns chain.
+
+### Offline prediction was again exact
+
+The E010 baseline trace reproduced the official E010 result bit-exactly
+(TS 0.743145, MRR 0.653149), confirming replay fidelity. On that same replay E011
+predicted TS 0.796939 / HR@10 0.930 / MRR 0.625462 / MTTC 3.785 / Eff 0.7215 —
+**all five bit-identical to the official run below.**
+
+This is a stronger result than E010's equivalent. E010's prediction was exact
+because its trajectory provably could not change; E011's trajectory changes on 74
+of 200 sessions, and the replay still matched. That validates R009's replay core
+as faithful to `evaluate()` under trajectory divergence, not merely under a frozen
+dialogue. It remains a fidelity check, not independent confirmation of the result.
+
+### Evaluation command (exactly one official run)
+
+```bash
+python3 -m evaluator.local_evaluator --output results_e011.json
+```
+
 ### Results
 
-*(to be filled in after the single official run — empty on purpose)*
+| Metric | E010 | E011 | Delta |
+|---|---|---|---|
+| HitRate@10 | 0.835000 | **0.930000** | **+0.095000** |
+| MRR | 0.653149 | 0.625462 | **−0.027687** |
+| MTTC | 4.515 | **3.785** | **−0.730** |
+| Efficiency | 0.6485 | 0.7215 | +0.0730 |
+| **TechnicalScore** | 0.743145 | **0.796939** | **+0.053794** |
+
+Reported token usage: 0 prompt / 0 completion (no model on the scored path).
+
+Runtime, **disclosed and not optimized** (the preregistration forbade bundling a
+performance experiment): official evaluator wall clock 101.4 s → **282.9 s**,
+about 2.79x slower, inside the preregistered 250–350 s expectation. The cost is
+the proximity scan over a 5x deeper pool plus the corresponding growth in distinct
+`_product_stream()` cache misses. FAQ §3 confirms no per-response timeout in the
+final evaluation. Any optimization belongs to a separate, separately-recorded
+change.
+
+### Scenario metrics
+
+| Scenario | n | HR@10 | Δ | MRR | Δ | MTTC | Δ |
+|---|---|---|---|---|---|---|---|
+| buying | 80 | 0.9250 | +0.0625 | 0.605670 | −0.049137 | 3.1875 | −0.712 |
+| browsing | 80 | 0.9500 | +0.1250 | 0.584430 | −0.023844 | 3.775 | −0.900 |
+| intent_override | 30 | 0.866667 | +0.0667 | 0.726706 | −0.009405 | 4.800 | −0.533 |
+| boundary | 10 | **1.000000** | +0.2000 | 0.808333 | +0.058333 | 5.600 | −0.100 |
+
+HitRate@10 and MTTC improved in **all four** buckets. MRR fell in three and rose
+in boundary. `boundary` reaching 1.0 is n = 10 and cannot support a conclusion.
+
+### D-5 paired session delta
+
+```bash
+python3 -m tools.diagnostics.d5_paired_delta \
+    docs/diagnostics/E010_SESSIONS.json results_e011.json --show-sessions
+```
+
+| Transition | n |
+|---|---|
+| miss→hit | **19** |
+| **hit→miss** | **0** |
+| hit→hit rank improved | 3 |
+| hit→hit rank regressed | **26** |
+| hit→hit unchanged | 138 |
+| miss→miss | 14 |
+
+**miss→hit (19).** Rank distribution of the new hits: rank 1 → 4, rank 2 → 1,
+rank 3 → 1, rank 4 → 5, rank 5 → 2, rank 7 → 1, rank 8 → 4, rank 9 → 1; mean 4.58,
+median 4. Scenario: browsing 10, buying 5, boundary 2, intent_override 2. Only 4
+of 19 land at rank 1 and 6 land at ranks 7–9 — these are targets that were outside
+the top-10 entirely and are recovered *low*. That shape is why +19 hits buys a
+great deal of HitRate@10 and MTTC but little MRR.
+
+**hit→miss: zero.** Not "no cluster" — no session at all, in any bucket, that hit
+under E010 misses under E011.
+
+**hit→hit rank movement.**
+
+| | n | mean move | range | Σ RR delta |
+|---|---|---|---|---|
+| improved | 3 | −2.33 | −3 … −1 | +1.083333 |
+| regressed | **26** | **+4.19** | +1 … +9 | **−13.857937** |
+| unchanged | 138 | — | — | 0 |
+
+Most common regressions: `1→8` (5), `1→3` (4), `1→2` (4), `2→9` (2), `1→7`,
+`2→7`, `1→4`, `6→7` (1 each). The damage is concentrated in rank-1 losses: 11 of
+the 26 started at rank 1, and 5 of those fell to rank 8.
+
+### MRR delta decomposition — exact
+
+The only reverse signal in this experiment is the MRR drop, so it is decomposed
+rather than described.
+
+| Component | Σ RR delta | Contribution to MRR |
+|---|---|---|
+| miss→hit | +7.237302 | +0.036187 |
+| hit→miss | +0.000000 | +0.000000 |
+| hit→hit improved | +1.083333 | +0.005417 |
+| **hit→hit regressed** | **−13.857937** | **−0.069290** |
+| hit→hit unchanged | 0 | 0 |
+| miss→miss | 0 | 0 |
+| **TOTAL** | **−5.537302** | **−0.027687** |
+
+Observed MRR delta from the evaluator's own aggregates: −0.027687. Reconstructed
+from the 200 per-session outcomes: −0.027687. **Residual 4.9e−10** — the
+decomposition is exact, so nothing unaccounted-for is moving MRR.
+
+Gross positive +0.041603, gross negative −0.069290, net −0.027687.
+
+**The entire MRR loss comes from one source: 26 retained hits losing rank. Not one
+point of it comes from a lost hit.** A deeper pool injects candidates that outrank
+the target under the proximity key — the same noise E007 encountered, except that
+under a proximity ranker it costs *rank* rather than costing the *hit*.
+
+**The 26 regressions are uniformly spread, not clustered:**
+
+| Scenario | regressed / n | share of bucket |
+|---|---|---|
+| boundary | 1 / 10 | 10.0 % |
+| browsing | 11 / 80 | 13.8 % |
+| buying | 11 / 80 | 13.8 % |
+| intent_override | 3 / 30 | 10.0 % |
+
+10.0 / 13.8 / 13.8 / 10.0 % is close to the flattest distribution the data admits.
+Whatever transition type the preregistered "concentration within one scenario
+bucket" test is applied to, this is its opposite.
+
+### Finding — the bottleneck has moved from recall to ordering, and is now nearly all ordering
+
+At pool 50, HitRate@10 **0.930** stands against D-2's perfect-reranker recall
+bound at the same depth, **0.935** — E011 attains **99.5 %** of the candidates
+that a pool-50 oracle could ever convert. Candidate availability at this depth is
+essentially exhausted.
+
+Decomposing what remains between E011 (TS 0.796939) and the pool-50 oracle
+(TS 0.903200), a gap of 0.106261:
+
+| Source of the remaining gap | TS | share |
+|---|---|---|
+| MRR (0.625462 → 0.935) | 0.092861 | **87.4 %** |
+| MTTC (3.785 → 3.240) | 0.010900 | 10.3 % |
+| HitRate@10 (0.930 → 0.935) | 0.002500 | 2.4 % |
+| total | 0.106261 | 100 % |
+
+**Nearly seven-eighths of everything still available at this pool depth is
+ordering, and MTTC — itself a function of how early the target is ranked into the
+top-10 — accounts for most of the rest.** Deepening the pool further cannot
+address that; only a better ranking rule can. This inverts R009's original
+framing: at pool 10 the diagnosis was "ranking, not recall" with recall
+nonetheless worth ~1 point; at pool 50 the recall term is worth 0.0025 of
+TechnicalScore in total.
+
+### Finding — E010 and E011 are complementary, and their order was load-bearing
+
+| | HitRate@10 | MRR | MTTC | TechnicalScore |
+|---|---|---|---|---|
+| E010 (rank within a frozen top-10) | +0.000000 | **+0.130570** | +0.000 | +0.039171 |
+| E011 (deepen the pool under that ranker) | **+0.095000** | **−0.027687** | **−0.730** | +0.053794 |
+| combined vs E006 + M6 | +0.095000 | +0.102883 | −0.730 | +0.092965 |
+
+The two experiments move disjoint metrics and in opposite directions on MRR. E010
+was a pure-MRR experiment *by construction* — it reordered exactly the ten ids
+that were returned, so it could never move HitRate@10. E011 breaks that ceiling by
+letting the same ranker choose from 50, and pays for it by handing back
+**21.2 %** of E010's MRR gain (−0.027687 of +0.130570; identically 21.2 % in TS
+terms, 0.008306 of 0.039171). It buys HitRate@10 and MTTC with a fifth of the
+ranking gain that made the deeper pool survivable in the first place.
+
+**The sequence is now empirically supported, and the reverse sequence is E007.**
+E007 deepened the pool 10 → 20 under the binary E004 coverage ranker and regressed
+on every overall metric (−0.031). E011 deepened it 10 → 50 under the E010
+proximity ranker and gained +0.054. Same architectural move, opposite outcome; the
+ranker in between is the difference. This retroactively confirms E007's narrow
+stated conclusion — *that* ranker could not exploit a noisier deeper pool — and
+refutes the broader reading that deeper retrieval is harmful per se. Ordering
+strength is a **precondition** for pool expansion, not an independent axis: the
+two must be sequenced rank-first, and E007's failure was a sequencing error rather
+than a hypothesis error.
+
+### A gap in the preregistered decision criterion — recorded as a lesson
+
+The KEEP/REVERT gate tested for a **hit→miss cluster**. This run produced zero
+hit→miss transitions, so criterion (b) had nothing to bite on. But the run's only
+reverse signal — 26 rank regressions worth −0.069290 MRR — is a *different*
+phenomenon that the gate does not measure at all. **Satisfying the gate therefore
+did not demonstrate the absence of a downside; it demonstrated the absence of the
+one downside the gate was written to catch.**
+
+The conclusion is unchanged on this evidence, for two independent reasons:
+
+1. The regressions are uniformly distributed (10.0 / 13.8 / 13.8 / 10.0 % across
+   the four buckets), so they fail the preregistered concentration test even if
+   that test were applied to rank regressions rather than to hit→miss.
+2. The MRR loss is **already priced into TechnicalScore**. Unlike a hidden
+   scenario collapse, a rank regression is fully expressed in the 0.30 × MRR term
+   the KEEP threshold is measured on. Criterion (a) has therefore already paid for
+   it: +0.053794 is the figure net of −0.008306 of MRR damage.
+
+That second point is also the reason the omission was easy to make, and is the
+lesson worth carrying: a D-5 gate adds value precisely where the aggregate score
+*hides* something. Hit→miss clusters qualify; rank regressions do not, because
+MRR already exposes them. The gate was not wrong to focus on hit→miss — it was
+incomplete in not saying so, which left "gate passed" looking like "nothing
+regressed". A future E-class preregistration should state which regression modes
+its gate covers and which are left to the aggregate metric. **The criterion was
+not reinterpreted after seeing results; it was applied as written, and this note
+records what it did not cover.**
+
+### Regression / bugs
+
+None found. No crash, no contract violation, no invalid or duplicate
+`parent_asin`, no change to the returned recommendation count, `top_k` still 10 on
+every turn. The only cost is runtime, disclosed above.
+
+### Decision: KEEP
+
+Human decision, 2026-08-31. Both preregistered conditions met:
+
+- (a) TechnicalScore **0.796939 > 0.743145**, by +0.053794.
+- (b) No hit→miss cluster — the count is **zero**, not merely unclustered.
+
+New best system: **E011 — Candidate Pool Expansion under a Proximity Reranker**,
+running on top of E010 + E006 + M6. Largest single-experiment gain since E003, and
+the first experiment since E001 to move HitRate@10 at all. Per-session outcomes
+are tracked verbatim as `docs/diagnostics/E011_SESSIONS.json`.
+
+### What this establishes, and what it does not
+
+**Established.** Under a word-order proximity ranker, expanding the internal
+candidate pool 10 → 50 and truncating to `top_k` after reranking converts into
++0.095 HitRate@10 and −0.730 MTTC at a cost of −0.027687 MRR, net +0.053794
+TechnicalScore, with zero sessions lost. E007's negative result was
+**ranker-limited, not depth-limited**: the two-stage retrieve-wide-then-rerank
+architecture needed a ranking signal strong enough to survive the extra noise, and
+the sequencing rank-first-then-expand is load-bearing.
+
+**Not established.**
+
+- That 50 is the right depth. It was preregistered as a single human-chosen value
+  and no other depth was run. D-2 prices pool 100 at a 0.9609 ceiling versus
+  0.9032 at pool 50, so measurable headroom remains in this direction — but E011's
+  own observed direction is that deepening *costs* MRR, so a deeper pool would not
+  redeem that ceiling proportionally. Any further depth needs a new authorized
+  preregistration.
+- That the 70/30 primary/insurance composition is right at this depth. It was held
+  from E001 to avoid a second variable; no other ratio was run.
+- That `N_MAX = 4` is optimal. Still frozen, still never swept officially. Open
+  Question 2 does not unfreeze, and the FAQ's retirement of paraphrase risk is not
+  a licence to tune it.
+- That intent override or boundary behavior is solved. Neither received any new
+  logic. intent_override remains the weakest bucket at HR@10 0.867, and boundary's
+  1.0 is n = 10.
+- That the MRR regression is harmless in general. It is priced into
+  TechnicalScore on *this* metric set; a deployment weighting top-1 precision more
+  heavily would score this trade differently.
+- Private-set generalization. n = 200, deterministic evaluator, no variance
+  estimate (D-6 unbuilt).
+
+### Next question
+
+None authorized. E011 was preregistered as the last capability experiment, and
+under that preregistration a KEEP freezes the algorithm here. The human has
+elected not to execute that freeze — see PROJECT_STATE.md, "Human Decision —
+Preregistered E011 Freeze Not Executed (2026-08-31)". Algorithm development
+remains open, and any further capability experiment requires separate human
+authorization and its own preregistration.
+
+The factual position on remaining headroom, stated without recommending anything:
+D-2 puts a perfect reranker at pool 100 at TS 0.9609 against 0.9032 at pool 50, so
+the depth direction still carries measurable oracle headroom; and 87.4 % of what
+remains at pool 50 is ordering, not recall. Those two facts point in different
+directions and neither is an experiment authorization.
