@@ -3563,3 +3563,253 @@ tie-collapse headroom unreachable with current lexical signals); any semantic /
 embedding / LLM signal (the human's 2026-09-01 "no model/API" decision stands);
 `intent_override` semantics; `user_profile` personalization; re-running D012.
 None of these may be added if E013 underperforms.
+
+### E013 result (official evaluator, one run)
+
+```
+python3 -m evaluator.local_evaluator --output results_e013.json
+```
+
+```
+HitRate@10       0.960
+MRR              0.641067
+MTTC             2.620
+Efficiency       0.838
+TechnicalScore   0.839920
+```
+
+Runtime: 411.19s real (409.10s user). vs E012's 444.30s — slightly *faster*
+despite the extra evidence units, because the session-level work is unchanged
+and the proximity loop breaks out at the first matching n-gram, which now
+happens sooner on shorter units.
+
+Scenario metrics:
+- buying: HitRate@10 0.95, MRR 0.577996, MTTC 2.2
+- browsing: HitRate@10 0.975, MRR 0.633408, MTTC 2.375
+- intent_override: HitRate@10 0.933333, MRR 0.809722, MTTC 4.2
+- boundary: HitRate@10 1.0, MRR 0.700952, MTTC 3.2
+
+### The two channels, reported separately (preregistration Procedure step 6)
+
+Not a composite summary — the preregistration required MRR and MTTC to be
+reported as independent movements, because the whole hypothesis is that the two
+coupled changes act on different channels:
+
+| Channel | E012 | E013 | Delta |
+|---|---:|---:|---:|
+| **MRR** | 0.623520 | 0.641067 | **+0.017547** |
+| **MTTC** | 3.575 | 2.620 | **-0.955** |
+| HitRate@10 | 0.965 | 0.960 | -0.005 |
+| Efficiency | 0.7425 | 0.838 | +0.0955 |
+| TechnicalScore | 0.818056 | 0.839920 | **+0.021864** |
+
+**MRR rose.** Every prior structural experiment (E011 -0.0277, E012 -0.0019)
+paid MRR to buy HitRate@10. This is the first one that moved MRR the other way,
+which is the specific prediction the clause-splitting half of the coupling
+made: each disclosed constraint now scores independently instead of sharing one
+n-gram with whatever else its message carried. Sessions returning the target at
+rank 1 went 97 -> 104.
+
+**MTTC fell by nearly a full turn**, and the mechanism is directly visible in
+the first-hit-turn distribution:
+
+| first_hit_turn | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| E012 | 32 | 38 | 49 | 34 | 19 | 8 | 6 | 1 | 6 |
+| E013 | 34 | **94** | 45 | 17 | 1 | 1 | 0 | 0 | 0 |
+
+Turn-2 hits went 38 -> 94 and **the entire tail past turn 6 disappeared**. This
+is exactly the predicted `other` mechanism: each intent card carries at most 4
+constraints, `customer_reply()` discloses up to 2 per turn, so two open-ended
+turns exhaust the card and the agent has the full constraint set in hand by
+turn 2 instead of accumulating it narrowly over six or nine turns. The
+preregistration's warning signal (MTTC failing to move, meaning `other` was not
+taken up) did not fire.
+
+### D-5 paired session delta (n=200), vs `docs/diagnostics/E012_SESSIONS.json`
+
+```
+python3 -m tools.diagnostics.d5_paired_delta docs/diagnostics/E012_SESSIONS.json results_e013.json --show-sessions
+```
+
+Transition matrix:
+- miss->hit: 3
+- hit->miss: **4**
+- hit->hit rank improved: 39
+- hit->hit rank regressed: 43
+- hit->hit unchanged: 107
+- miss->miss: 4
+
+aggregate reciprocal-rank delta: +3.509524 (MRR delta +0.017548)
+aggregate first-hit-turn delta: -191.0 (MTTC delta -0.955)
+
+Scenario breakdown:
+- boundary n=10: unchanged 5, rank improved 2, rank regressed 3
+- browsing n=80: unchanged 41, rank improved 19, rank regressed 18, hit->miss 1, miss->miss 1
+- buying n=80: unchanged 43, rank improved 13, rank regressed 19, hit->miss 2, miss->hit 1, miss->miss 2
+- intent_override n=30: unchanged 18, rank improved 5, rank regressed 3, miss->hit 2, hit->miss 1, miss->miss 1
+
+Sessions:
+- miss->hit: public_0144 (intent_override, now rank 3 @ turn 4), public_0145
+  (buying, rank 10 @ turn 2), public_0183 (intent_override, rank 1 @ turn 4)
+- hit->miss: public_0097 (buying, was rank 10 @ turn 6), public_0162
+  (browsing, was rank 10 @ turn 6), public_0174 (buying, was rank 8 @ turn 3),
+  public_0198 (intent_override, was rank 5 @ turn 7)
+
+**This is the first E-class experiment since E010 with a non-zero hit->miss
+count, and that is reported here before any decision discussion.** E011 and E012
+each had exactly zero. Against the preregistered definition — "a single isolated
+hit->miss session is not a cluster; a concentration within one scenario bucket
+is" — these 4 are spread across three different buckets (buying 2/80, browsing
+1/80, intent_override 1/30, boundary 0/10) with no bucket exceeding a 3.3% loss
+rate, so they do not meet the preregistered definition of a cluster. Three of
+the four were marginal hits to begin with (ranks 10, 10, 8), i.e. sessions
+sitting on the edge of the top-10 window rather than securely held. In
+reciprocal-rank terms the four cost 0.5250 and the three miss->hit sessions
+returned 1.4333.
+
+The 43 rank-regressed vs 39 rank-improved counts are also worth stating plainly:
+**more sessions lost rank than gained it, yet MRR still rose**, because the
+gains were larger per session than the losses. The composite improvement is not
+an artifact of a favourable mean over a hidden regression cluster, but it is
+also not a broad uniform improvement — it is a redistribution with a positive
+net.
+
+### Preregistered decision rule, checked condition by condition
+
+| Condition | Threshold | Measured | Met? |
+|---|---|---|---|
+| (a) TechnicalScore gain | >= 0.010 (i.e. TS >= 0.828056) | TS 0.839920, gain **+0.021864** | **yes** |
+| (b) No scenario HR@10 drop > 0.05 | buying >= 0.9125, browsing >= 0.9375, intent_override >= 0.85, boundary >= 0.95 | 0.95 (-0.0125), 0.975 (-0.0125), 0.933333 (**+0.0333**), 1.0 (0.0) | **yes** |
+| (c) No hit->miss cluster | no concentration within one bucket | 4 sessions across 3 buckets, max 3.3% of a bucket | **yes, by the preregistered definition** — but non-zero for the first time since E010, see above |
+
+### Offline prediction vs measured result
+
+The preregistration's offline full-dynamic-replay prediction was TS 0.839220
+(HR@10 0.960, MRR 0.6411, MTTC 2.655). Measured: TS **0.839920**, HR@10 0.960
+(exact), MRR 0.641067 (predicted 0.6411), MTTC 2.620 (predicted 2.655).
+
+This is the **third** consecutive validation of the replay core against the
+official evaluator, and the first one that is *not* bit-exact: E011 and E012
+both matched to five decimals, E013 is off by +0.0007 TS and -0.035 MTTC. The
+divergence is small and in the favourable direction, and it is the expected
+place for one to appear — E013 is the first change where the agent's own
+question alters the simulator's disclosure path from turn 1, so replay and
+evaluator trajectories have the most opportunity to separate. The replay remains
+a good predictor; it is now demonstrably an approximate one rather than an exact
+one, which is the more accurate thing to record. As at E011 and E012, the
+offline number is reported as a prediction and did not substitute for the
+official run.
+
+### Authorized test revision (preregistration "What this breaks")
+
+`tests/test_agent.py::test_an_attribute_is_never_asked_twice_in_one_session` was
+replaced by `test_the_clarification_schedule_opens_wide_then_narrows`. The new
+test pins what is actually required — every `ask_attribute` is contract-legal or
+`None`, turns 1-2 ask `other`, and from turn 3 no *specific* attribute repeats —
+and its docstring carries the reason and the pointer back to this
+preregistration. The old single-assertion invariant was deleted rather than
+weakened in place. No other test was modified. Full suite: **37 tests, all
+passing.**
+
+### Decision: KEEP
+
+Human decision, 2026-09-01, after the non-zero hit->miss count was put to them
+explicitly rather than absorbed into the rule text. All three preregistered
+conditions met:
+
+- (a) TechnicalScore **0.839920**, a gain of **+0.021864** over 0.818056, above
+  the preregistered >= 0.010 bar.
+- (b) No scenario HitRate@10 fell by more than 0.05 — the largest drop was
+  -0.0125 (buying and browsing), and intent_override *rose* +0.0333.
+- (c) No hit->miss cluster by the preregistered definition — 4 sessions spread
+  across three buckets, no bucket above a 3.3% loss rate.
+
+New best system: **E013 — Resolution/Clarification Coupling**, running on top of
+E012 + E011 + E010 + E006 + M6 + E004 + E003 + E002 + E001. Per-session
+snapshot: `docs/diagnostics/E013_SESSIONS.json`.
+
+### Interpretation
+
+**The coupling hypothesis is confirmed on the scored path, and it is confirmed
+through the specific channels it predicted, not just in aggregate.** The audit's
+offline 2x2 said each half alone regresses (-0.0042, -0.0017) and the pair gains
++0.0212 through an interaction term of +0.0271. The official run returns
++0.021864 with MRR up +0.0175 and MTTC down -0.955 — the resolution half paying
+out in MRR and the acquisition half in MTTC, which is exactly the division of
+labour the bundling argument rested on. Treating this as one indivisible
+experiment was not a procedural formality; run as two sequential experiments it
+would have been killed at the first step and the +0.0219 permanently closed.
+
+**The post-E012 bottleneck was score resolution, not recall and not the ranking
+rule.** E011 and E012 both bought HitRate@10 by spending MRR. E013 is the first
+experiment to raise MRR, and it did so without touching the proximity formula,
+the sort key, the pool, or any retrieval signal — only by letting each disclosed
+constraint occupy its own evidence unit. That is direct evidence for the audit's
+central claim that the ranking key's value space, not the ranking rule, was the
+binding constraint.
+
+**The `other` result is a product finding, not only a simulator finding.** Two
+open-ended turns beat six to nine narrow ones because most stated constraints do
+not fall into any single attribute category. The first-hit-turn histogram makes
+the mechanism unambiguous: turn-2 hits 38 -> 94, tail past turn 6 eliminated.
+The final report must present it that way **and** disclose its dependence on
+`customer_reply()` semantics in the same place — that obligation was set in the
+preregistration and is now binding, not optional.
+
+**This does not establish that the change is free.** 43 sessions lost rank
+against 39 that gained, and 4 previously-hit sessions became misses where E011
+and E012 each lost none. The net is positive because the gains are larger per
+session, not because the change is uniformly good. No per-session inspection of
+the 43 regressions was performed under this preregistration.
+
+**Not established:**
+
+- That two `other` turns is the right count. The audit's own reasoning (4
+  constraints per card, 2 disclosed per turn) predicts `other`x2 and `other`x
+  infinity should be near-identical, and the histogram is consistent with that,
+  but no other turn count was run officially and none should be without a new
+  preregistration.
+- That the clause delimiter set is right. `[;:.!?•]` and `", "` were fixed
+  before evaluation and must not be tuned now that the result is known.
+- That the +0.0271 interaction term generalizes to other pool depths or other
+  ranking rules. It was measured once, at pool 100, under this reranker.
+- That the four hit->miss sessions are benign. They pass the distribution test;
+  they were not diagnosed.
+- Private-set generalization. This is the project's **highest-coupling change to
+  date** — the audit rated its overfitting risk "medium" against E012's
+  "lowest", for two disclosed reasons (the `;` delimiter coincides with the
+  simulator's own join character; `other` uses the wildcard branch of
+  `customer_reply()`). FAQ §1 and §5 underwrite the generalization story in
+  writing, but that is an organizer guarantee being relied upon, not an
+  independently verified property. n=200, no variance estimate.
+
+**A methodological result worth separating out:** the offline replay core, which
+predicted E011 and E012 bit-exactly, predicted E013 only approximately (+0.0007
+TS, -0.035 MTTC). It is a good predictor, not an exact one, and the divergence
+appeared precisely where theory says it should — the first change in which the
+agent's own question alters the simulator's disclosure path from turn 1. Future
+preregistrations should cite replay numbers as approximate.
+
+### Next question
+
+None authorized. E013 was the last identified reachable-gain direction in the
+post-E011 audit; §12 of that audit ("stop list") closes N_MAX tuning, field-
+weighted proximity, tie-break sort keys, intent_override semantics,
+`user_profile` personalization, D012, and bag-of-words reweighting, and §14
+judges the remaining ~0.078 of tie-collapse headroom unreachable without a new
+signal class (semantic/embedding/LLM) that the human's 2026-09-01 "no model/API"
+decision excludes. Any further capability experiment — including a third pool
+depth, a different `other` turn count, or a revised clause delimiter set —
+requires separate explicit human authorization and its own preregistration.
+
+Two non-experimental obligations remain open and are independent of any further
+experiment:
+
+1. Write the audit's §13 risk 1 into the final report's limitations — the system
+   depends heavily on exact-substring matching (`_proximity_score()`), which
+   `docs/M2_SYSTEM_DESIGN.md` overfitting rule #1 forbids — and update M2 so the
+   two documents stop contradicting each other.
+2. Present the `other` half as the product insight it is, with its
+   `customer_reply()` dependence disclosed alongside, per the preregistration's
+   narrative obligation.

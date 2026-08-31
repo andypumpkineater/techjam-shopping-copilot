@@ -7,19 +7,27 @@ true when written and is superseded by this one.
 
 ## Position
 
-**Updated 2026-09-01 — see "E012 Outcome (2026-09-01)" below for the full
+**Updated 2026-09-01 — see "E013 Outcome (2026-09-01)" below for the full
 record; this Position block is kept current, not historical.**
 
-- **Final current algorithm: E012** — Candidate Pool Expansion 50 -> 100,
-  running on top of E011 + E010 + E006 + M6 + E004 + E003 + E002 + E001.
-- **E012 status: KEEP** (human decision, 2026-09-01).
-- **Official TechnicalScore: 0.818056** — HitRate@10 0.965, MRR 0.623520,
-  MTTC 3.575, Efficiency 0.7425, over the 200 public sessions.
-- Evaluator run at commit (post-`bc3ff52`/`ff8cb44`, pre-E012-commit): output
-  `results_e012.json`, wall clock 444.30 s real.
+- **Final current algorithm: E013** — Resolution/Clarification Coupling
+  (clause-level evidence units + front-loaded `other`), running on top of
+  E012 + E011 + E010 + E006 + M6 + E004 + E003 + E002 + E001.
+- **E013 status: KEEP** (human decision, 2026-09-01).
+- **Official TechnicalScore: 0.839920** — HitRate@10 0.960, MRR 0.641067,
+  MTTC 2.620, Efficiency 0.838, over the 200 public sessions.
+- Evaluator run at commit (post-`954f491`, pre-E013-commit): output
+  `results_e013.json`, wall clock 411.19 s real. Per-session snapshot:
+  `docs/diagnostics/E013_SESSIONS.json`.
 - E005, E007, E008 remain REVERTED. D012 remains CANCELLED with no result.
-- E011 (TechnicalScore 0.796939) is prior best, unchanged in its own record
-  below and still the fallback point if a future pool-depth experiment fails.
+- E012 (TechnicalScore 0.818056) is prior best, unchanged in its own record
+  below, and is the full-rollback point for E013 — **both** coupled halves plus
+  the original test, never one half.
+- E013 is the project's highest-coupling change to date (audit overfitting risk
+  "medium", vs E012's "lowest"). Two dependencies on simulator semantics are
+  disclosed in the EXPERIMENTS.md record and must appear in the final report:
+  the clause delimiter `;` coincides with `customer_reply()`'s own join
+  character, and `other` uses that function's wildcard branch.
 
 ## Algorithm freeze for submission preparation (historical — lifted 2026-09-01)
 
@@ -51,6 +59,14 @@ Whether algorithm capability development reopens after submission preparation wa
 see "Algorithm freeze lifted (2026-09-01)" below.
 
 ## Submission source provenance
+
+**STALE as of 2026-09-01 — this block describes the E011-era submission and has
+not been re-established since.** `starter/agent.py` has changed twice since it
+was written (E012 KEEP, E013 KEEP), so the hash below is no longer the current
+agent's. No submission-ready checkpoint exists at present (see "M7 progress"),
+so nothing is currently mis-stated to a judge; re-deriving the hash, updating
+`docs/REPRODUCIBILITY.md` section 10 and `docs/PROVENANCE.json` is an open M7
+item. The original text follows unedited.
 
 The submitted `starter/agent.py` is **byte-identical** to the agent evaluated for
 the E011 result:
@@ -617,6 +633,115 @@ the post-E011 audit, Artifact 37161e21) remain unauthorized and out of scope
 for this decision; any further capability experiment requires separate explicit
 human authorization and its own preregistration.
 
+# E013 Outcome (2026-09-01)
+
+Status: **KEEP** (human decision, 2026-09-01). Full record: EXPERIMENTS.md
+"E013 — Resolution/Clarification Coupling (clause-level evidence units +
+front-loaded `other`)". Preregistration was committed in `954f491` before
+`starter/agent.py` was touched.
+
+E013 is the sixth human-approved post-Architecture-v1.1 experiment, after E007,
+E008, E010, E011 and E012. It was authorized by the "Algorithm freeze lifted
+(2026-09-01)" decision recorded above together with the 2026-09-01
+authorization block in the post-E011 ranking-bottleneck audit (Artifact
+`37161e21`), which chose clarification option (b) and authorized revising one
+existing test.
+
+**Preregistered and executed as ONE indivisible experiment.** The audit's
+offline 2x2, all four arms on the same E012 pool-100 baseline, measured clause
+splitting alone at **-0.0042**, first-two-turns `other` alone at **-0.0017**,
+and the pair at **+0.0212** — an interaction term of +0.0271. Run as two
+sequential experiments, the first would have REVERTed on -0.0042 and, by the
+E007/E011 "do not test a second value if the first fails" discipline, cancelled
+the second, permanently closing the gain. The bundling was declared up front in
+the preregistration following the E011 precedent, not discovered afterwards.
+
+Coupled change (exactly two, zero other behavior lines):
+1. `_evidence_units()` / `_evidence_token_lists()` split each admitted message
+   into clauses on `[;:.!?•]` and `", "` before `_terms()`, with a whole-message
+   fallback when no non-blank clause remains. Both use the identical splitter so
+   the one-to-one alignment E010's proximity path requires is preserved.
+2. `_select_attribute()` returns `"other"` on turns 1 and 2 and hands back to
+   the existing E006 adaptive logic from turn 3, with `_asked_attributes`
+   bookkeeping unchanged (so turn 2 is a deliberate repeat).
+
+`POOL_DEPTH`, the 70/30 composition, BM25, `N_MAX`, the proximity formula, the
+sort key, and E003 evidence *admission* are byte-identical — confirmed by
+`git diff`.
+
+E012 baseline (prior best): HitRate@10 0.965, MRR 0.623520, MTTC 3.575,
+Efficiency 0.7425, TechnicalScore 0.818056. Runtime 444.30s.
+
+E013 result (new best): HitRate@10 0.960, MRR 0.641067, MTTC 2.620,
+Efficiency 0.838, TechnicalScore 0.839920. Runtime 411.19s.
+
+Delta vs E012: HitRate@10 -0.005, **MRR +0.017547**, **MTTC -0.955**,
+Efficiency +0.0955, TechnicalScore **+0.021864**, runtime -33.1s (slightly
+faster despite more evidence units — the proximity loop breaks at the first
+matching n-gram, which happens sooner on shorter units).
+
+**Key finding — the post-E012 bottleneck was score resolution, and the two
+channels moved exactly as the coupling predicted.** E011 and E012 each bought
+HitRate@10 by spending MRR (-0.0277 and -0.0019). E013 is the **first
+experiment to raise MRR** (+0.0175), and it did so without touching the
+proximity formula, the sort key, the pool, or any retrieval signal — only by
+letting each disclosed constraint occupy its own evidence unit. Rank-1 sessions
+went 97 -> 104. Separately, MTTC fell by nearly a full turn, with the mechanism
+directly visible in the first-hit-turn histogram: turn-2 hits 38 -> 94 and the
+entire tail past turn 6 eliminated, consistent with two open-ended turns
+exhausting a 4-constraint card disclosed 2 at a time.
+
+D-5 paired transition matrix vs `docs/diagnostics/E012_SESSIONS.json` (n=200):
+miss->hit 3, **hit->miss 4**, rank improved 39, rank regressed 43, unchanged
+107, miss->miss 4. The 4 hit->miss sessions are spread buying 2/80, browsing
+1/80, intent_override 1/30, boundary 0/10 — no bucket above a 3.3% loss rate,
+so no cluster under the preregistered definition. **This is the first non-zero
+hit->miss count since E010** (E011 and E012 each had zero) and was put to the
+human explicitly before the KEEP rather than absorbed into the rule text.
+
+**This does not establish that the change is free.** 43 sessions lost rank
+against 39 that gained; MRR rose because the gains were larger per session, not
+because the change is uniformly good. Three of the four lost sessions were
+marginal hits already (ranks 10, 10, 8). No per-session diagnosis of the
+regressions was performed.
+
+Do **not** conclude that two `other` turns is the optimal count (no other count
+was run officially), that the clause delimiter set is tuned or tunable (it was
+fixed before evaluation and must not be adjusted now the result is known), that
+the +0.0271 interaction term generalizes beyond pool 100 under this reranker,
+or that the four hit->miss sessions are benign (they pass the distribution test;
+they were not diagnosed).
+
+**Methodological result, recorded separately:** the offline replay core that
+predicted E011 and E012 bit-exactly predicted E013 only approximately (TS
+0.839220 vs 0.839920; MTTC 2.655 vs 2.620). It remains a good predictor but is
+now demonstrably approximate, and the divergence appeared where theory says it
+should — E013 is the first change in which the agent's own question alters the
+simulator's disclosure path from turn 1. Future preregistrations should cite
+replay numbers as approximate.
+
+**Authorized test revision.**
+`tests/test_agent.py::test_an_attribute_is_never_asked_twice_in_one_session`
+was replaced by `test_the_clarification_schedule_opens_wide_then_narrows`. The
+old test encoded a self-imposed E002 policy as if it were a contract
+requirement; neither `docs/agent_api_contract.json` nor
+`evaluator/local_evaluator.py` prohibits repeating a question. The human
+authorized the revision on 2026-09-01 on condition it be recorded explicitly.
+The new test pins what is actually required. No other test was modified. Full
+suite: 37 tests, all passing.
+
+E007 and E008 remain REVERTED. E010, E011, E012 and E013 are KEPT. **No further
+capability experiment is authorized.** The post-E011 audit's stop list (§12)
+closes `N_MAX` tuning, field-weighted proximity, tie-break sort keys,
+intent_override semantics, `user_profile` personalization, D012, and
+bag-of-words reweighting; §14 judges the remaining tie-collapse headroom
+unreachable without a signal class the human's 2026-09-01 "no model/API"
+decision excludes. Two non-experimental obligations remain open: writing the
+audit's exact-substring dependency into the final report's limitations (and
+updating `docs/M2_SYSTEM_DESIGN.md`, whose overfitting rule #1 it contradicts),
+and presenting the `other` half as a product insight with its
+`customer_reply()` dependence disclosed alongside.
+
 # Environment
 - macOS
 - Python 3.11 virtual environment at `.venv`
@@ -627,7 +752,19 @@ human authorization and its own preregistration.
 - current branch: dev
 # Current Best System
 
-E012 — Candidate Pool Expansion 50 -> 100: identical mechanism to E011 below,
+E013 — Resolution/Clarification Coupling: two inseparable changes on top of
+E012's pool-100 retrieval. (1) One admitted message is split into clauses on
+`[;:.!?•]` and `", "` before tokenization, so each disclosed constraint becomes
+its own evidence unit and scores its own proximity n-gram instead of sharing
+one. (2) `_select_attribute()` asks the open-ended `"other"` on turns 1 and 2,
+then hands back to E006's adaptive logic from turn 3. Neither half works alone
+(-0.0042 and -0.0017 offline); together +0.0219 official. Retrieval, pool depth,
+BM25, `N_MAX`, the proximity formula, the sort key, and evidence admission are
+unchanged from E012. Status: complete / KEEP. TechnicalScore 0.839920 —
+HitRate@10 0.960, MRR 0.641067, MTTC 2.620, Efficiency 0.838. See EXPERIMENTS.md
+for full record.
+
+Prior best: E012 — Candidate Pool Expansion 50 -> 100: identical mechanism to E011 below,
 at double the depth. `POOL_DEPTH = 100` (was 50), `PRIMARY_SLOTS = 70` (was
 35), `INSURANCE_SLOTS = 30` (was 15) — the 70/30 ratio established at E001 is
 unchanged, only the depth it operates at doubles. No other line in
@@ -715,21 +852,41 @@ the secondary sort key — see "Current Architecture" below).
 
 # Current Best Metrics
 
-Overall (sample_count 200) — E012:
-- HitRate@10: 0.965
-- MRR: 0.623520
-- MTTC: 3.575
-- Efficiency: 0.7425
-- TechnicalScore: 0.818056
+Overall (sample_count 200) — E013:
+- HitRate@10: 0.960
+- MRR: 0.641067
+- MTTC: 2.620
+- Efficiency: 0.838
+- TechnicalScore: 0.839920
 
 Scenario metrics:
+- buying: HitRate@10 0.95, MRR 0.577996, MTTC 2.2
+- browsing: HitRate@10 0.975, MRR 0.633408, MTTC 2.375
+- intent_override: HitRate@10 0.933333, MRR 0.809722, MTTC 4.2
+- boundary: HitRate@10 1.0, MRR 0.700952, MTTC 3.2
+
+Runtime 411.19s, slightly faster than E012's 444.30s despite the extra evidence
+units (the proximity loop breaks at the first matching n-gram, which happens
+sooner on shorter units).
+
+E013 mechanism check / D-5 vs E012 (n=200): miss->hit 3, hit->miss 4, rank
+improved 39, rank regressed 43, unchanged 107, miss->miss 4. MRR delta
+**+0.017547** — the first experiment in the project to move MRR upward — and
+MTTC delta **-0.955**. The 4 hit->miss sessions are the first non-zero count
+since E010; they are spread buying 2/80, browsing 1/80, intent_override 1/30,
+boundary 0/10, no bucket above 3.3%, so no cluster under the preregistered
+definition. Note that 43 sessions lost rank against 39 gained: MRR rose because
+the gains were larger per session, not because the change is uniformly good.
+Full record: EXPERIMENTS.md "E013".
+
+E012 (prior best): HitRate@10 0.965, MRR 0.623520, MTTC 3.575,
+Efficiency 0.7425, TechnicalScore 0.818056. Runtime 444.30s.
+
+Scenario metrics at E012:
 - buying: HitRate@10 0.9625, MRR 0.604162, MTTC 2.925
 - browsing: HitRate@10 0.9875, MRR 0.585645, MTTC 3.5
 - intent_override: HitRate@10 0.9, MRR 0.714537, MTTC 4.833333
 - boundary: HitRate@10 1.0, MRR 0.808333, MTTC 5.6
-
-Runtime 444.30s (~1.57x E011's 282.9s), disclosed and not optimized — the
-preregistration forbade bundling a performance experiment.
 
 E012 mechanism check / D-5 vs E011 (n=200): miss->hit 7, hit->miss 0, rank
 improved 1, rank regressed 8, unchanged 177, miss->miss 7. MRR delta -0.001942

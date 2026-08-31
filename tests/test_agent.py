@@ -399,17 +399,44 @@ class StabilityAndEdgeCaseTest(AgentTestBase):
             if response["ask_attribute"] is not None:
                 self.assertIn(response["ask_attribute"], ALLOWED_ATTRIBUTES)
 
-    def test_an_attribute_is_never_asked_twice_in_one_session(self) -> None:
+    def test_the_clarification_schedule_opens_wide_then_narrows(self) -> None:
+        """REVISED AT E013, with human authorization recorded in the E013
+        preregistration in EXPERIMENTS.md ("What this breaks").
+
+        This test previously asserted that no attribute is ever asked twice in
+        one session. That was a self-imposed E002 policy, not a requirement:
+        neither docs/agent_api_contract.json nor evaluator/local_evaluator.py
+        prohibits repeating a question, and customer_reply() answers a
+        repeated attribute with an information-free template that
+        _is_information_free() already keeps out of evidence. E013 asks "other"
+        on both of the first two turns deliberately, so the old invariant is
+        deleted rather than weakened, and what is actually required is pinned
+        here instead."""
         agent = Agent(self.catalog_path)
-        agent.reset("no-repeat", {})
-        asked: list[str] = []
+        agent.reset("schedule", {})
+        asked: list[str | None] = []
         message = "I'm looking for running shoes, but I'm still exploring."
         for turn in range(1, 11):
-            response = agent.respond("no-repeat", message, turn, TOP_K)
-            if response["ask_attribute"] is not None:
-                asked.append(response["ask_attribute"])
+            response = agent.respond("schedule", message, turn, TOP_K)
+            asked.append(response["ask_attribute"])
             message = "Those options are not quite right yet. Ask me about one specific attribute."
-        self.assertEqual(len(asked), len(set(asked)))
+
+        # Every asked attribute is contract-legal, or the agent asks nothing.
+        for attribute in asked:
+            if attribute is not None:
+                self.assertIn(attribute, ALLOWED_ATTRIBUTES)
+
+        # E013 — the first two turns are the open-ended question.
+        self.assertEqual(asked[:2], ["other", "other"])
+
+        # From turn 3 the E006 adaptive logic resumes, and its own
+        # _asked_attributes bookkeeping still prevents a specific attribute
+        # from being asked twice within the session.
+        specific = [
+            attribute for attribute in asked[2:]
+            if attribute is not None and attribute != "other"
+        ]
+        self.assertEqual(len(specific), len(set(specific)))
 
     def test_empty_initial_message_returns_no_recommendations_without_raising(self) -> None:
         """KNOWN LIMITATION, pinned. An empty message produces no lexical
