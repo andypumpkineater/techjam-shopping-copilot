@@ -460,5 +460,131 @@ class StabilityAndEdgeCaseTest(AgentTestBase):
         self.assertTrue(responses[1]["recommendations"])
 
 
+class SlateRotationTest(AgentTestBase):
+    """E. Idle-turn slate rotation (E014).
+
+    These pin the MECHANISM, not its score. E014's argument is a dominance
+    argument -- a page the evaluator has already judged cannot contain the
+    target, so re-showing it hits with probability exactly 0 -- and that argument
+    only holds if the properties below hold. They are asserted here because
+    nothing else in the repository checks them, and E014 carries the largest
+    single share of TechnicalScore of any late change (+0.0218).
+
+    No test here reads a label or asserts that a ranking is good.
+
+    WHY top_k=4 AND NOT THE CONTRACT'S 10. Rotation steps the window by the
+    caller's own `top_k` and clamps the offset to `len(ranked) - top_k`, so a
+    pool shorter than two pages cannot rotate at all -- correctly, since there is
+    no unshown page to turn to. The synthetic catalog holds 24 products, so at
+    top_k=10 there is only ever one and a bit pages and the mechanism is
+    invisible. top_k=4 over a broad query gives a 24-deep pool, i.e. six clean
+    pages, which is the same shape the frozen 50,000-product catalog produces at
+    top_k=10 with POOL_DEPTH=100. `top_k` is a contract parameter the agent must
+    honor for any value, so exercising it at 4 tests the shipped code path, not a
+    special case.
+    """
+
+    IDLE = "Those options are not quite right yet. Ask me about one specific attribute."
+    BROAD = "I'm looking for clothing, but I'm still exploring."
+    K = 4
+
+    def test_an_idle_turn_returns_a_different_page(self) -> None:
+        """The core claim. Turn 2 admits no new evidence, so the ranked pool and
+        its order are unchanged -- and the returned page must therefore NOT be
+        the one already shown and passed over."""
+        responses = self.drive(self.agent, "rotate-basic", [self.BROAD, self.IDLE], top_k=self.K)
+        first, second = self.ids(responses[0]), self.ids(responses[1])
+        self.assertEqual(len(first), self.K, "the pool must be deep enough to have a next page")
+        self.assertNotEqual(first, second)
+        self.assertFalse(set(first) & set(second), "a rotated page must not re-show a passed-over id")
+
+    def test_consecutive_idle_turns_keep_advancing_and_never_repeat(self) -> None:
+        """Rotation is a window walk over one ranked pool, so while the evidence
+        stays unchanged no id may appear on two pages."""
+        agent = Agent(self.catalog_path)
+        agent.reset("rotate-walk", {})
+        seen: list[str] = []
+        message = self.BROAD
+        for turn in range(1, 6):
+            seen.extend(self.ids(agent.respond("rotate-walk", message, turn, self.K)))
+            message = self.IDLE
+        self.assertEqual(len(seen), 5 * self.K, "every idle turn should still return a full page")
+        self.assertEqual(len(seen), len(set(seen)), "an id was shown on two different pages")
+
+    def test_new_evidence_resets_the_window_to_the_head(self) -> None:
+        """Rotation must be abandoned the moment the customer says something
+        real: the ranking inputs changed, so the head is no longer a page that
+        has already been judged."""
+        agent = Agent(self.catalog_path)
+        agent.reset("rotate-reset", {})
+        head = self.ids(agent.respond("rotate-reset", self.BROAD, 1, self.K))
+        rotated = self.ids(agent.respond("rotate-reset", self.IDLE, 2, self.K))
+        self.assertNotEqual(head, rotated)
+
+        # A real reply at turn 3 must put the window back at offset 0, i.e. the
+        # returned page is the head of the NEW ranking, not a continuation of
+        # the old walk. Verified against a fresh session fed the same evidence.
+        follow_up = "For that, what matters is: wool blend."
+        after_evidence = self.ids(agent.respond("rotate-reset", follow_up, 3, self.K))
+
+        agent.reset("rotate-fresh", {})
+        agent.respond("rotate-fresh", self.BROAD, 1, self.K)
+        expected_head = self.ids(agent.respond("rotate-fresh", follow_up, 2, self.K))
+        self.assertEqual(after_evidence, expected_head)
+
+    def test_rotation_does_not_feed_back_into_the_question(self) -> None:
+        """The property E014's exact offline prediction rests on: the attribute
+        selector is fed the PRE-rotation head, never the rotated window. The
+        simulator reads only `ask_attribute`, so if the question sequence cannot
+        see which page is showing, rotation cannot perturb the conversation --
+        which is what makes it a pure output-side change and what makes its
+        effect predictable offline exactly rather than approximately.
+
+        ONE DELIBERATE WHITE-BOX COUPLING, declared. This wraps the private
+        `_select_attribute` to record the candidate list it is handed. There is
+        no way to observe the distinction through `respond()` alone: both
+        candidate lists are legal inputs that would produce legal questions, and
+        a regression here would be silent -- no exception, no local score drop,
+        just a reopened feedback loop. The same reasoning licenses the two
+        documented couplings in `tools/diagnostics/_replay.py`. If the agent's
+        shape changes, this fails loudly rather than quietly testing nothing."""
+        agent = Agent(self.catalog_path)
+        self.assertTrue(hasattr(agent, "_select_attribute"),
+                        "agent shape changed: _select_attribute is gone, this test is stale")
+
+        seen_by_selector: list[list[str]] = []
+        original = agent._select_attribute
+
+        def recording(session_id, ids, turn):
+            seen_by_selector.append(list(ids))
+            return original(session_id, ids, turn)
+
+        agent._select_attribute = recording
+
+        agent.reset("rotate-ask", {})
+        returned: list[list[str]] = []
+        message = self.BROAD
+        for turn in range(1, 5):
+            returned.append(self.ids(agent.respond("rotate-ask", message, turn, self.K)))
+            message = self.IDLE
+
+        head = returned[0]                      # turn 1 is offset 0, so it IS the head
+        self.assertEqual(len(seen_by_selector), 4)
+
+        for turn_index, candidates in enumerate(seen_by_selector, start=1):
+            self.assertEqual(
+                candidates, head,
+                f"turn {turn_index}: the selector must always see the unchanging "
+                f"pre-rotation head while evidence is unchanged",
+            )
+
+        # And the pages actually returned did rotate away from that head, so the
+        # equality above is a real constraint rather than a vacuous one.
+        for turn_index, page in enumerate(returned[1:], start=2):
+            self.assertNotEqual(page, head, f"turn {turn_index} did not rotate")
+            self.assertFalse(set(page) & set(head),
+                             f"turn {turn_index} re-showed part of the head")
+
+
 if __name__ == "__main__":
     unittest.main()

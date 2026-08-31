@@ -67,10 +67,13 @@ Every number above is bound to the exact code that produced it in
 [`docs/PROVENANCE.json`](docs/PROVENANCE.json) — commit → `starter/agent.py`
 SHA-256 → evaluator command → artifact SHA-256 → metrics. The per-session record
 is [`docs/diagnostics/E014_SESSIONS.json`](docs/diagnostics/E014_SESSIONS.json).
-Each experiment is run on the official evaluator exactly once, by policy; the
-E011 result was additionally reproduced independently on 2026-08-31 and came
-back byte-identical, which is the evidence we have for determinism of this
-pipeline. No second run of E014 has been performed.
+Each experiment is *decided* on a single official-evaluator run, by policy. This
+result was additionally re-run at the submitted commit on 2026-09-01 and came
+back **byte-identical** — same 200 per-session records, same bytes, same
+0.861737. That is a determinism check on an already-frozen baseline, run after
+the decision and never used to revisit it; it says nothing about a different
+machine or about the unreleased sessions.
+[`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md) §8 states the boundary.
 
 ## Why It Works
 
@@ -389,7 +392,7 @@ Every artifact in this repository carries an evidence class in
 | Model / API cost | **$0.00** |
 | Third-party runtime dependencies | **none** (Python stdlib only) |
 | Credentials / environment variables required | **none** |
-| 200-session evaluator run, wall clock | **411.19 s** |
+| 200-session evaluator run, wall clock | **415.83 s** |
 
 The runtime figure is **one measured wall-clock run in the documented
 environment** (CPython 3.11.15, macOS Darwin 25.5.0, arm64), covering one full
@@ -404,10 +407,10 @@ path stays offline by design choice, not because of any restriction.
 
 The agent is deterministic in the tested environment — no `random`, no `time`, no
 concurrency, no hashing of unordered structures into output order. That was
-checked directly at E011, where re-running the official evaluator at the
-submitted commit reproduced the tracked per-session snapshot byte-for-byte. Later
-experiments are run once each by policy, so the current commit's snapshot has not
-been independently re-derived.
+checked directly at this commit: re-running the official evaluator at `769bd5f`
+on 2026-09-01 reproduced `docs/diagnostics/E014_SESSIONS.json` byte-for-byte
+(SHA-256 `e69e83c6…`). The same check passed at E011. E012 and E013 were never
+re-run and remain single-run results.
 
 ## Demo
 
@@ -472,7 +475,7 @@ left the other 193 bit-for-bit unchanged, this transcript included.
 - **No run-to-run variance estimate exists**, so small deltas between experiments
   cannot be separated from noise. At n=200 a TechnicalScore move of 0.021
   corresponds to roughly 7 sessions; the final system's margin over its
-  predecessor (+0.0219) sits just above that scale, not far above it.
+  predecessor (+0.0218) sits just above that scale, not far above it.
 - **These results are public-set results.** Evidence from the 200 public sessions
   does not by itself establish relative ranking on the unreleased sessions,
   beyond the evaluation mechanics the organizer has stated.
@@ -523,7 +526,7 @@ PROJECT_STATE.md                    milestone state and decision record
 | [`docs/PROVENANCE.json`](docs/PROVENANCE.json) | Machine-checkable binding: result → commit → agent SHA-256 → artifact SHA-256 → metrics |
 | [`EXPERIMENTS.md`](EXPERIMENTS.md) | Every experiment, including preregistrations, negative results, and reverted changes |
 | [`PROJECT_STATE.md`](PROJECT_STATE.md) | Current milestone, decisions, and open items |
-| [`docs/M2_SYSTEM_DESIGN.md`](docs/M2_SYSTEM_DESIGN.md) | Architecture design record (v1.1) |
+| [`docs/M2_SYSTEM_DESIGN.md`](docs/M2_SYSTEM_DESIGN.md) | Architecture design record (v1.1) — **pre-implementation design, not the as-built system**; its own banner tabulates where the shipped agent diverges |
 | [`tools/diagnostics/README.md`](tools/diagnostics/README.md) | Diagnostic tooling and its ground-truth boundary |
 | [`docs/competition_specification.md`](docs/competition_specification.md) | Organizer task, protocol, and scoring spec |
 | [`docs/final_evaluation_faq.md`](docs/final_evaluation_faq.md) | Organizer final-evaluation, network, hardware, and judging policy |
@@ -543,12 +546,17 @@ starter/agent.py SHA-256
 Verify in one line:
 
 ```bash
-diff <(git show 01ea938:starter/agent.py) starter/agent.py && echo "byte-identical"
+diff <(git show 769bd5f:starter/agent.py) starter/agent.py && echo "byte-identical"
 ```
 
 ## Team
 
-[HUMAN INPUT REQUIRED: team roster and contributions]
+> **PENDING — must be filled in before submission.** Team roster and per-member
+> contributions are a required final deliverable
+> ([`docs/competition_specification.md`](docs/competition_specification.md),
+> "Final Deliverables"; [`docs/submission_rules.md`](docs/submission_rules.md)).
+> This section is deliberately left as a marked placeholder rather than
+> populated with invented names.
 
 ## Data Source
 

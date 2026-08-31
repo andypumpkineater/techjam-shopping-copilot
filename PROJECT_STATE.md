@@ -76,32 +76,39 @@ see "Algorithm freeze lifted (2026-09-01)" below.
 
 ## Submission source provenance
 
-**Re-established 2026-09-01 at E013.** The drift that opened at E012 (this block
-still described the E011-era submission through two algorithm changes) is closed.
+**Re-established 2026-09-01 at E014**, during the final submission /
+reproducibility audit. This block had drifted a second time: it still described
+the E013 submission after E014 became the baseline, which is the same failure it
+was rewritten to close at E013. It is now the *only* place in this file that
+states the current hash, so there is one thing to update per baseline change.
 
 The submitted `starter/agent.py` is **byte-identical** to the agent evaluated for
-the E013 result:
+the E014 result:
 
-- evaluated (commit `01ea938`): `47543f3dc10df61c02ffafb24f1ee1a9cd56c52dd83c7cb35aa29e082b9808ee`
-- submitted: `47543f3dc10df61c02ffafb24f1ee1a9cd56c52dd83c7cb35aa29e082b9808ee`
+- evaluated (commit `769bd5f`): `1bde5aa6bdd5a52c0eb88d744c394263a64fbb0ab3606bb8a157b3b095274643`
+- submitted: `1bde5aa6bdd5a52c0eb88d744c394263a64fbb0ab3606bb8a157b3b095274643`
 
 Same file, same hash, no divergence. Verify:
-`diff <(git show 01ea938:starter/agent.py) starter/agent.py`.
-Full statement: `docs/PROVENANCE.json`, which now carries all five official runs
-(E006+M6, E010, E011, E012, E013) with every agent and artifact hash verified,
-and `docs/REPRODUCIBILITY.md` section 10.
+`diff <(git show 769bd5f:starter/agent.py) starter/agent.py`.
+Full statement: `docs/PROVENANCE.json`, which now carries all six official runs
+(E006+M6, E010, E011, E012, E013, E014) with every agent and artifact hash
+verified, and `docs/REPRODUCIBILITY.md` section 10.
 
 **One honesty note carried forward:** the E011 entry recorded an independent
-reproduction (2026-08-31, byte-identical). No independent reproduction has been
-performed for E012 or E013 — each experiment is run on the official evaluator
-exactly once by project policy. `docs/PROVENANCE.json` states this explicitly
-rather than letting the E011 reproduction read as if it covered the current
-baseline.
+reproduction (2026-08-31, byte-identical). No independent reproduction had been
+performed for E012, E013 or E014 at the time each was decided — each experiment
+is run on the official evaluator exactly once by project policy.
+`docs/PROVENANCE.json` states this explicitly rather than letting the E011
+reproduction read as if it covered the current baseline. See "Post-freeze
+reproducibility audit (2026-09-01)" below for what the audit added on top of
+that.
 
-Superseded text, retained as the record of what this block said from 2026-08-31
-to 2026-09-01: the same claim at commit `093078d`, SHA-256
-`cb46d467a114c87ef002613219be45f509e7ecbc292af15858229e1d168d0d92`, for the
-E011 result.
+Superseded text, retained as the record of what this block said:
+
+- from 2026-08-31 to 2026-09-01, at E011: commit `093078d`, SHA-256
+  `cb46d467a114c87ef002613219be45f509e7ecbc292af15858229e1d168d0d92`;
+- on 2026-09-01, at E013: commit `01ea938`, SHA-256
+  `47543f3dc10df61c02ffafb24f1ee1a9cd56c52dd83c7cb35aa29e082b9808ee`.
 
 ## Official documentation authority
 
@@ -135,11 +142,23 @@ Completed in submission preparation so far:
 - `tests/test_agent.py` — contract and session-isolation coverage for Agent
   (commit `52ba564`).
 
-Not yet done: final technical report, figures, repository consistency audit,
-cold-start reproduction, and the final submission checklist.
+Not yet done when this list was written: final technical report, figures,
+repository consistency audit, cold-start reproduction, and the final submission
+checklist.
 
-**A submission-ready checkpoint has NOT yet been established.** The remaining
-items above are still open.
+**Updated 2026-09-01.** The repository consistency audit and the cold-start
+reproduction are now **done** — see "Post-freeze reproducibility audit
+(2026-09-01)" below. Still open: the team roster (blocking, see "Open items
+requiring human input"), and the two unverified external facts in
+`docs/REPRODUCIBILITY.md` (catalog Release URL, repository visibility). "Final
+technical report" and "figures" are judged satisfied by `README.md` against
+`docs/competition_specification.md` "Final Deliverables" — source + setup, a
+working Agent, a report covering architecture / models / cost / limitations, and
+one demonstrated multi-turn session — with team contributions the one missing
+element.
+
+**A submission-ready checkpoint is now blocked only on the team roster** and on
+the human decisions to commit, merge, and submit.
 
 ## Algorithm freeze lifted (2026-09-01)
 
@@ -151,6 +170,61 @@ EXPERIMENTS.md before any runtime change, run the official evaluator, record
 KEEP/REVERT). This does not rewrite the M7 freeze record above, which stands
 as the decision that was in force from 2026-08-31 to 2026-09-01. The next
 authorized experiment is E012 — see EXPERIMENTS.md.
+
+## Post-freeze reproducibility audit (2026-09-01)
+
+A judge's-eye audit of the final submission, run against the frozen E014
+baseline. **No algorithm change, no new experiment, no scoring decision.**
+`starter/agent.py` was not modified and its SHA-256 is unchanged
+(`1bde5aa6…`).
+
+**Determinism reproduced at the submitted commit — twice, including a cold
+start.** The official evaluator was re-run at `769bd5f` and returned output
+**byte-identical** to `docs/diagnostics/E014_SESSIONS.json` (SHA-256
+`e69e83c6…`) — TechnicalScore 0.861737, all 200 per-session records identical.
+Wall clock 425.14 s. The repository was then cloned fresh into an empty
+directory, the catalog placed exactly as `docs/REPRODUCIBILITY.md` §2 describes,
+and the documented commands run in order (FTS5 check, 41 tests, the §10
+source-integrity one-liner, demo verification, bare
+`python3 -m evaluator.local_evaluator`): **byte-identical again**, 422.62 s, with
+no step improvised and nothing needed beyond this repository plus the organizer's
+catalog. Both runs came *after* the KEEP decision and neither was used to revisit
+it; project policy remains one official run per experiment, and a determinism
+check on a frozen baseline is not an experiment. Recorded in
+`docs/PROVENANCE.json` (`current_submission_baseline.independent_reproduction`)
+and `docs/REPRODUCIBILITY.md` §8.
+
+**Defects found and fixed** (documentation and tooling only):
+
+| # | Where | Defect | Fix |
+|---|---|---|---|
+| 1 | `README.md` "Submitted Source Integrity" | The one-line verify command read `git show 01ea938:...` — the **E013** commit — while quoting E014's SHA-256. As printed, the command a judge is told to run **fails**. | Repointed to `769bd5f`. |
+| 2 | `README.md` Feasibility, `docs/REPRODUCIBILITY.md` §6 | Runtime reported as 411.19 s, which is **E013's** wall clock. E014 measured 415.83 s. | Corrected; §6 now lists every accepted system's wall clock instead of three of six. |
+| 3 | `docs/REPRODUCIBILITY.md` §8 | "The current system's margin over its predecessors (+0.0538)" — stale E010→E011 figure. | Replaced with E014's actual +0.021817 over E013, plus the cumulative +0.118592 over E010. |
+| 4 | `README.md` Limitations | Two bullets gave E014's margin as +0.0219 and +0.0218 for the same quantity (0.021817). | Both now +0.0218. |
+| 5 | `tools/demo_session.py`, `docs/DEMO_SESSION.md` | `--verify` cross-checked the demo against `E013_SESSIONS.json` while the surrounding prose called it "the run that produced our reported TechnicalScore". | Repointed to `E014_SESSIONS.json`; the generated Markdown now reads the filename from `SNAPSHOT` so it cannot drift again. `public_0003`'s outcome is identical in both snapshots, so the transcript itself was never wrong. |
+| 6 | `PROJECT_STATE.md` "Submission source provenance" | Still described the **E013** submission (commit `01ea938`, SHA `47543f3d…`) and "all five official runs" — the same drift this block had been rewritten to close one experiment earlier. | Advanced to E014 / `769bd5f` / six runs, with both superseded statements retained. |
+| 7 | `docs/M2_SYSTEM_DESIGN.md` | No currency banner. A judge reading §A.6 would conclude the agent performs semantic supersession on intent override; it does not (E005, REVERTED), directly contradicting README Limitation #1. §A.2/A.3's `Guard` component is likewise unimplemented. | Added a status banner naming the doc a pre-E001 design record and tabulating five deliberate divergences from the shipped system. |
+| 8 | `tests/test_agent.py` | No test covered E014 rotation — the newest mechanism and the one carrying +0.0218. | Added `SlateRotationTest` (4 tests) pinning the mechanism, the reset-on-new-evidence behavior, and the no-feedback-into-`ask_attribute` property that makes E014's offline prediction exact. |
+
+**Verified correct, no change needed:** all 13 SHA-256 bindings in
+`docs/PROVENANCE.json` (6 agent commits, 7 artifacts) recompute exactly; the
+E014 headline and all four scenario buckets recompute from the tracked
+per-session array under the evaluator's own formulas; `results_e014.json` is
+byte-identical to the tracked snapshot; every relative Markdown link in the
+judge-facing docs resolves; `evaluator/` is untouched; the agent imports stdlib
+only, exactly as `requirements.txt` claims; the E000 baseline row matches
+`docs/baseline_results.json`.
+
+**Reported, deliberately NOT fixed.** `starter/agent.py` carries a stale inline
+comment in the pool-backfill branch: it says "its 35 reserved pool slots" and
+"the 15 reserved insurance slots", which were the E011 pool-50 values;
+`PRIMARY_SLOTS`/`INSURANCE_SLOTS` are 70/30 since E012. It is a comment only —
+no behavioral effect, and the constants immediately above it are correct and
+current. Correcting it would change the file's SHA-256 and break the
+byte-identical binding between the submitted source and the evaluated source,
+which is worth more than the comment. This is the same call the human made at
+PHASE 2B for two other stale comments, and it is applied here for consistency.
 
 ## Open items requiring human input
 

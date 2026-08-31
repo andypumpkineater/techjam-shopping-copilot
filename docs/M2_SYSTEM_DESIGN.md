@@ -1,5 +1,31 @@
 # Architecture v1.1 — TechJam Track 4 Shopping Copilot
 
+> ## Status: design record, not the as-built system
+>
+> This is the **M2 design document**, written before E001 and covering a roadmap
+> that ends at E006. It is retained as the architectural record of what was
+> intended and why. It is **not** a description of the shipped agent.
+>
+> **The shipped system is E014.** For what the code actually does, read
+> [`README.md`](../README.md) § Architecture and `starter/agent.py`. Where the
+> two disagree, the README is the as-built description and this document is
+> history.
+>
+> Known, deliberate divergences between this design and the shipped system:
+>
+> | § | This document specifies | The shipped E014 agent does |
+> |---|---|---|
+> | A.5, A.6, B.5 | An evidence state machine (`active` / `superseded` / `exhausted`) with conflict-scoped supersession on intent override | **Append-only evidence.** No supersession of any kind. Erase-on-override was tested as **E005 and REVERTED** (it scored worse); no finer-grained policy was ever built. See README § Limitations, first bullet. |
+> | A.2, A.4 | Retrieve → rank, with candidate counts left unprescribed as E001 tuning | **Retrieve 100 → rerank the whole pool → truncate to `top_k` last.** `POOL_DEPTH = 100`, split 70 primary / 30 global insurance. The ordering of rerank and truncate turned out to be the decisive structural choice (E011), and it is not settled anywhere in this document. |
+> | A.7 | "Choose the attribute that best partitions the current candidate pool", every turn | Turns 1–2 ask the open-ended `other` **unconditionally**; catalog-side pool partitioning takes over only from turn 3 — E013 |
+> | A.2, A.3, B.6 | A `Guard` component: exception containment, a degradation cascade, and a wrapper that "always yields 10 valid ids" | **Not implemented.** `starter/agent.py` contains no `try`/`except` at all. Exception containment is left to the evaluator's own wrapper, and an empty or punctuation-only first message returns **zero** recommendations rather than ten. Disclosed in README § Limitations, third bullet. |
+> | (absent) | — | **Idle-turn slate rotation** — E014, designed after this document was written |
+> | E.1 | "Any mechanism relying on exact substring identity is forbidden" | Overruled by measurement at E010; annotated in place in §E.1 below rather than deleted |
+>
+> Nothing in this document is a scoring claim. Official measured results live in
+> [`README.md`](../README.md) § Results, [`docs/REPRODUCIBILITY.md`](REPRODUCIBILITY.md)
+> §5, and [`docs/PROVENANCE.json`](PROVENANCE.json).
+
 > Supersedes the design sections of `M2_SYSTEM_DESIGN.md` (v1.0).
 > v1.0 is retained as the diagnostic record; where the two disagree, **v1.1 wins**.
 > Design only. No implementation. File references are repo-relative: `evaluator/local_evaluator.py:252`.

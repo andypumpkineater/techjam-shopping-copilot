@@ -156,7 +156,7 @@ every artifact with its evidence class.
 
 | Measurement | Value |
 |---|---|
-| 200-session evaluator run, wall clock | **411.19 s** |
+| 200-session evaluator run, wall clock | **415.83 s** |
 | Measured on | CPython 3.11.15, macOS Darwin 25.5.0, arm64 |
 | Per session, derived | ~2.1 s |
 
@@ -166,11 +166,13 @@ constructed once per `Agent` instantiation) plus all 200 sessions. Different
 hardware will differ. `docs/final_evaluation_faq.md` section 3 confirms there is
 no standardized organizer hardware and no separate per-response timeout.
 
-Historical wall clocks for earlier accepted systems, as recorded in
-`EXPERIMENTS.md`: E006+M6 73.4 s, E010 101.4 s, E011 282.9 s. The current system
-is the slowest of the three; the cost was disclosed and accepted rather than
-optimized, because the E011 preregistration forbade bundling a performance
-experiment into a capability experiment.
+Wall clocks for every accepted system, as recorded in `EXPERIMENTS.md`:
+E006+M6 73.4 s, E010 101.4 s, E011 282.9 s, E012 444.30 s, E013 411.19 s,
+E014 415.83 s. The step change is E011/E012 — reranking a 100-deep pool instead
+of a 10-deep one — and E013 and E014 are flat against E012 (E014's rotation adds
+one list slice and no retrieval or ranking work). The cost was disclosed and
+accepted rather than optimized, because the E011 preregistration forbade bundling
+a performance experiment into a capability experiment.
 
 ## 7. Model, tokens, and cost
 
@@ -196,14 +198,48 @@ in this repository. There is therefore no environment-variable manifest.
 
 ## 8. Determinism and reproducibility notes
 
-**Reproduced — once, at E011.** On 2026-08-31 the official evaluator was re-run
-at commit `093078d` and produced output **byte-identical** to the tracked
-snapshot `docs/diagnostics/E011_SESSIONS.json` (SHA-256
-`b78820ce3bcd1045196112eed8c4cfda263b40d4844b4051671733b06a2519e3`). The current
-baseline is E014, not E011: this check has not been repeated at E012, E013 or E014,
-because each experiment is run on the official evaluator exactly once by project
-policy. Read it as evidence about the determinism of this pipeline, not as a
-second measurement of the reported score.
+**Reproduced at the current baseline.** On 2026-09-01, during the final
+submission audit, the official evaluator was re-run at the submitted commit
+`769bd5f` (`starter/agent.py` SHA-256
+`1bde5aa6bdd5a52c0eb88d744c394263a64fbb0ab3606bb8a157b3b095274643`) and produced
+output **byte-identical** to the tracked snapshot
+`docs/diagnostics/E014_SESSIONS.json` (SHA-256
+`e69e83c693ecd7992ad6119202425ff82ac458b2e552c35d78437c6b6e05843a`) — same
+TechnicalScore 0.861737, same 200 per-session records, same bytes. Wall clock
+425.14 s.
+
+Read that for exactly what it is:
+
+- It **is** evidence that this pipeline is deterministic on this machine, and
+  that the reported score is not a one-off draw.
+- It is **not** a second independent measurement used to justify anything. It ran
+  *after* the E014 KEEP decision was already recorded, no algorithm or threshold
+  was revisited on the basis of it, and the KEEP still rests on the single
+  preregistered run. Project policy remains **one official run per experiment**;
+  a post-freeze determinism check on a frozen baseline is not an experiment.
+- It is **not** evidence about a different machine, a different Python, a
+  different SQLite, or the unreleased final sessions.
+
+**Reproduced again from a clean clone.** The same day, the repository was cloned
+fresh into an empty directory, the catalog placed exactly as section 2 above
+describes, and the documented commands run in order: the FTS5 check, the test
+suite (41 tests, all passing), the source-integrity one-liner in section 10, the
+demo verification, and finally the bare `python3 -m evaluator.local_evaluator`.
+The resulting `results.json` was again **byte-identical** to
+`docs/diagnostics/E014_SESSIONS.json` (SHA-256 `e69e83c6…`), in 422.62 s. Nothing
+outside this repository and the organizer's catalog was needed, and no step in
+sections 1–4 had to be improvised. That is the cold-start check these
+instructions exist to pass.
+
+The re-run outputs were written outside the repository and are not tracked: their
+SHA-256 equals the tracked snapshot's, so a second copy would carry no
+information.
+
+**Also reproduced earlier, at E011.** On 2026-08-31 the same check at commit
+`093078d` returned output byte-identical to
+`docs/diagnostics/E011_SESSIONS.json` (SHA-256
+`b78820ce3bcd1045196112eed8c4cfda263b40d4844b4051671733b06a2519e3`) in 283.32 s.
+E012 and E013 were never re-run and are still single-run results.
 
 The agent contains no randomness: no `random`, no `time`, no hashing of
 unordered structures into output order, no concurrency. Ordering is decided by
@@ -219,9 +255,11 @@ SQLite BM25 plus an explicit stable sort.
   because no lexical expression is produced. This is unfixed and is classified as
   a defensive robustness gap, not an observed evaluator blocker.
 - No run-to-run variance estimate exists (the planned D-6 was never built), so
-  small deltas between experiments cannot be separated from noise. The current
-  system's margin over its predecessors (+0.0538) is large relative to the
-  deltas this would affect.
+  small deltas between experiments cannot be separated from noise. At n=200 a
+  TechnicalScore move of 0.021 is roughly 7 sessions, and E014's margin over its
+  predecessor E013 (+0.021817) sits just above that scale rather than far above
+  it. The cumulative margin over the E010 baseline (+0.118592) is not at risk
+  from this.
 
 ## 9. Final results retention procedure
 
@@ -291,13 +329,20 @@ audit. Verify it in one line:
 diff <(git show 769bd5f:starter/agent.py) starter/agent.py && echo "byte-identical"
 ```
 
-**Reproduction status, stated plainly.** Each experiment is run on the official
-evaluator exactly once, by project policy. One independent reproduction has been
-performed in this project's history — at E011, on 2026-08-31, at commit
-`093078d`, returning output byte-identical to `E011_SESSIONS.json` in 283.32 s.
-That is evidence about this pipeline's determinism. It is **not** a second run of
-the E012, E013 or E014 results, and `docs/PROVENANCE.json` records it as such
-rather than letting it read as if it covered the current baseline.
+**Reproduction status, stated plainly.** Each experiment is *decided* on a
+single official-evaluator run, by project policy. Two determinism reproductions
+have been performed in this project's history, both after the decision they
+follow, and neither used to revisit one:
+
+| At | Date | Commit | How | Result |
+|---|---|---|---|---|
+| **E014 — the submitted baseline** | 2026-09-01 | `769bd5f` | in place | byte-identical to `E014_SESSIONS.json`, 425.14 s |
+| **E014 — the submitted baseline** | 2026-09-01 | `769bd5f` | **clean clone**, catalog placed per section 2 | byte-identical to `E014_SESSIONS.json`, 422.62 s |
+| E011 | 2026-08-31 | `093078d` | in place | byte-identical to `E011_SESSIONS.json`, 283.32 s |
+
+E012 and E013 were never re-run. Both reproductions are recorded in
+`docs/PROVENANCE.json` as determinism evidence, explicitly not as second
+measurements. See section 8 for what they do and do not establish.
 
 ---
 

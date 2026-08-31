@@ -25,7 +25,8 @@ WHAT THIS IS NOT
 
     `--verify` checks that mirroring mechanically: it re-derives the outcome
     (hit / first_hit_turn / best_rank) and compares it against the tracked
-    per-session snapshot `docs/diagnostics/E013_SESSIONS.json`, which was
+    per-session snapshot named by SNAPSHOT below -- currently
+    `docs/diagnostics/E014_SESSIONS.json`, the current submission baseline -- which was
     produced by the official evaluator. If this driver drifted from evaluator
     semantics, that comparison fails.
 
@@ -73,7 +74,11 @@ from starter.agent import Agent
 
 
 REPO = Path(__file__).resolve().parent.parent
-SNAPSHOT = REPO / "docs" / "diagnostics" / "E013_SESSIONS.json"
+# The per-session record of the official evaluator run behind the reported
+# TechnicalScore. Repoint this at the new snapshot whenever the submission
+# baseline advances; the generated Markdown reads the name from here, so the
+# doc cannot drift away from what --verify actually checks.
+SNAPSHOT = REPO / "docs" / "diagnostics" / "E014_SESSIONS.json"
 SHOW_RECOMMENDATIONS = 5
 
 
@@ -162,7 +167,13 @@ def provenance() -> dict:
             return "unavailable"
     agent_source = (REPO / "starter" / "agent.py").read_bytes()
     return {
-        "commit": git("rev-parse", "HEAD"),
+        # The commit that last CHANGED the agent, not repository HEAD. HEAD moves
+        # on every docs commit, which would churn this transcript and point a
+        # reader at a commit where nothing about the agent happened. This is the
+        # commit whose starter/agent.py hash is bound to the reported result in
+        # docs/PROVENANCE.json.
+        "agent_commit": git("log", "-1", "--format=%H", "--", "starter/agent.py"),
+        "head_commit": git("rev-parse", "HEAD"),
         "agent_sha256": hashlib.sha256(agent_source).hexdigest(),
         "agent_matches_head": git("status", "--porcelain", "--", "starter/agent.py") == "",
     }
@@ -282,7 +293,7 @@ def render_markdown(result: dict, products: dict, meta: dict, verified: str | No
     w("")
     w("| | |")
     w("|---|---|")
-    w(f"| Commit | `{meta['commit']}` |")
+    w(f"| `starter/agent.py` last changed in commit | `{meta['agent_commit']}` |")
     w(f"| `starter/agent.py` SHA-256 | `{meta['agent_sha256']}` |")
     w(f"| `starter/agent.py` uncommitted changes at generation | "
       f"{'none' if meta['agent_matches_head'] else 'PRESENT -- transcript is not from the committed agent'} |")
@@ -292,7 +303,7 @@ def render_markdown(result: dict, products: dict, meta: dict, verified: str | No
         w(f"| Outcome verified against official evaluator snapshot | {verified} |")
     w("")
     w("The outcome above is cross-checked against")
-    w("[`docs/diagnostics/E013_SESSIONS.json`](diagnostics/E013_SESSIONS.json), the")
+    w(f"[`docs/diagnostics/{SNAPSHOT.name}`](diagnostics/{SNAPSHOT.name}), the")
     w("per-session record of the official evaluator run that produced our reported")
     w("TechnicalScore:")
     w("")

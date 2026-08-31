@@ -131,7 +131,7 @@ Prerequisites — Python, catalog placement, FTS5 check: [`docs/REPRODUCIBILITY.
 
 | | |
 |---|---|
-| Commit | `769bd5f400e32887e76319036503051989240819` |
+| `starter/agent.py` last changed in commit | `769bd5f400e32887e76319036503051989240819` |
 | `starter/agent.py` SHA-256 | `1bde5aa6bdd5a52c0eb88d744c394263a64fbb0ab3606bb8a157b3b095274643` |
 | `starter/agent.py` uncommitted changes at generation | none |
 | Transcript source | generated directly by `tools/demo_session.py`; not hand-edited |
@@ -139,7 +139,7 @@ Prerequisites — Python, catalog placement, FTS5 check: [`docs/REPRODUCIBILITY.
 | Outcome verified against official evaluator snapshot | hit=True first_hit_turn=3 best_rank=1 |
 
 The outcome above is cross-checked against
-[`docs/diagnostics/E013_SESSIONS.json`](diagnostics/E013_SESSIONS.json), the
+[`docs/diagnostics/E014_SESSIONS.json`](diagnostics/E014_SESSIONS.json), the
 per-session record of the official evaluator run that produced our reported
 TechnicalScore:
 
