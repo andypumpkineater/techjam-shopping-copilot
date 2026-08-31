@@ -16,11 +16,18 @@ No ground truth or catalog access needed -- it reads evaluator output only.
 
 Usage
 -----
-    python -m evaluator.local_evaluator --output results_before.json
-    # ... apply a change ...
-    python -m evaluator.local_evaluator --output results_after.json
-    python -m tools.diagnostics.d5_paired_delta results_before.json results_after.json
-    python -m tools.diagnostics.d5_paired_delta before.json after.json --show-sessions
+Always pass two NAMED snapshots. Do NOT use a bare `results.json` as the before
+side: repo-root `results*.json` is gitignored scratch and will silently be
+several experiments stale, yielding a wrong-but-plausible transition matrix that
+nothing flags. Tracked baselines live in `docs/diagnostics/*_SESSIONS.json` --
+see tools/diagnostics/README.md, "Result snapshots".
+
+    python -m evaluator.local_evaluator --output results_myexperiment.json
+    python -m tools.diagnostics.d5_paired_delta \
+        docs/diagnostics/E010_SESSIONS.json results_myexperiment.json
+    python -m tools.diagnostics.d5_paired_delta \
+        docs/diagnostics/E006_M6_SESSIONS.json docs/diagnostics/E010_SESSIONS.json \
+        --show-sessions
 """
 from __future__ import annotations
 

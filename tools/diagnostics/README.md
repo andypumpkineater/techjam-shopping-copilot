@@ -67,10 +67,10 @@ python3 -m tools.diagnostics.d3_counterfactual_bench --pool 60 \
     --scorers phrase_n2,phrase_n3,phrase_n4,phrase_n8
 
 # D-5  paired session delta between two official runs
-python3 -m evaluator.local_evaluator --output results_before.json
-python3 -m evaluator.local_evaluator --output results_after.json
-python3 -m tools.diagnostics.d5_paired_delta results_before.json results_after.json \
-    --show-sessions
+#   Always pass two NAMED snapshots. See "Result snapshots" below.
+python3 -m evaluator.local_evaluator --output results_myexperiment.json
+python3 -m tools.diagnostics.d5_paired_delta \
+    docs/diagnostics/E010_SESSIONS.json results_myexperiment.json --show-sessions
 
 # invariant check for a ranking-only experiment
 python3 -m tools.diagnostics.invariant_check dump --out trace_before.json
@@ -82,6 +82,38 @@ python3 -m tools.diagnostics.invariant_check compare \
 
 Each tool accepts `--limit N` for a fast smoke run and `--json PATH` to persist
 machine-readable output.
+
+## Result snapshots — never use a bare `results.json` as a baseline
+
+D-5 is a required input for every E-class KEEP/REVERT decision, so its *before*
+side must be reproducible. Two rules:
+
+1. **Working evaluator output is scratch.** Every `results*.json` in the repo
+   root is gitignored and carries no meaning beyond "whatever I ran last". A
+   file named `results.json` will silently be several experiments stale, and a
+   D-5 run against it produces a wrong-but-plausible transition matrix that
+   nothing will flag.
+2. **Authoritative per-session outcomes are named and tracked**, under
+   `docs/diagnostics/`:
+
+   | Snapshot | Agent |
+   |---|---|
+   | `E006_M6_SESSIONS.json` | E006 + M6 (TS 0.703974) |
+   | `E010_SESSIONS.json` | E010, current best (TS 0.743145) |
+
+   These are the evaluator's own output, committed verbatim and never
+   hand-edited. Each holds the 200-entry `sessions` array D-5 needs.
+   Add one per KEEP; a REVERTED experiment does not earn a snapshot.
+
+Ground-truth boundary: a `sessions` entry contains only `sample_id`,
+`scenario_type`, `hit`, `first_hit_turn`, `best_rank`, and `reciprocal_rank`
+— no target id, no `ground_truth`, no catalog ASIN of any kind. These files are
+strictly less sensitive than the aggregate scores already published in
+`EXPERIMENTS.md`.
+
+Note that `E006_M6_BASELINE.json` is a different artifact: it holds R009's
+curated aggregate metrics and diagnostic tables, and has **no** `sessions`
+array, so D-5 cannot run against it.
 
 ## D-3 discipline
 
