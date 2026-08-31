@@ -36,6 +36,59 @@ _ASK_SEQUENCE: tuple[str | None, ...] = (
     None, None,
 )
 
+# E006 — adaptive, catalog-side selection among the five ask_attribute
+# values that the published evaluator's classify_constraint() can actually
+# label a disclosed constraint with from free product text (material,
+# color, style, feature, use_case). size and budget remain legal specific
+# attributes reachable through the fixed fallback below, but are not
+# adaptively scored: size tokens (S/M/L) are filtered out by _terms()'s
+# length>1 rule and numeric sizes are indistinguishable from prices/
+# dimensions without semantic parsing, and budget would require a new
+# price index (out of scope for this version). category/brand are never
+# scored: classify_constraint() never labels a constraint as either, so
+# asking them cannot elicit informative evidence under the published
+# simulator mechanics. Frozen before evaluation; not tuned afterward.
+_ADAPTIVE_SCORED_ATTRIBUTES: tuple[str, ...] = (
+    "material", "color", "style", "feature", "use_case",
+)
+
+# Small, catalog-general, single-token vocabularies (English domain words
+# matching this catalog's own top-level department, "Clothing, Shoes &
+# Jewelry"), chosen independently of the evaluator's own MATERIALS/
+# COLOR_RE constants, ground truth, targets, or public evaluator output.
+# Frozen; not to be revised after seeing evaluator results.
+_ATTRIBUTE_VOCAB: dict[str, frozenset[str]] = {
+    "material": frozenset({
+        "cotton", "polyester", "nylon", "leather", "wool", "denim", "silk",
+        "linen", "suede", "fleece", "canvas", "spandex", "velvet", "rayon",
+        "cashmere", "mesh", "satin", "corduroy",
+    }),
+    "color": frozenset({
+        "black", "white", "blue", "red", "pink", "green", "brown", "gray",
+        "grey", "purple", "yellow", "orange", "navy", "beige", "gold", "silver",
+    }),
+    "style": frozenset({
+        "casual", "formal", "athletic", "vintage", "classic", "slim",
+        "relaxed", "regular", "sporty", "elegant", "modern", "retro",
+    }),
+    "feature": frozenset({
+        "waterproof", "breathable", "adjustable", "stretch", "lightweight",
+        "washable", "wireless", "rechargeable", "reversible", "insulated",
+        "padded", "cushioned", "hypoallergenic", "durable",
+    }),
+    "use_case": frozenset({
+        "hiking", "running", "gym", "winter", "outdoor", "work", "travel",
+        "yoga", "beach", "wedding", "workout", "camping", "office", "school",
+    }),
+}
+
+# The seven specific (non-"other") attributes from _ASK_SEQUENCE, in their
+# original E002 order — reused, not re-derived, as the deterministic
+# fallback when no adaptive attribute is eligible this turn.
+_SPECIFIC_ATTRIBUTES: tuple[str, ...] = tuple(
+    attribute for attribute in _ASK_SEQUENCE if attribute not in (None, "other")
+)
+
 # E003 — fixed prefixes of the published evaluator's information-free/
 # no-preference customer_reply templates (evaluator/local_evaluator.py).
 # Attribute-independent prefixes only; no attribute-name interpolation
@@ -101,6 +154,7 @@ class Agent:
         self.catalog_path = Path(catalog_path)
         self.connection = sqlite3.connect(":memory:")
         self._sessions: dict[str, list[str]] = {}
+        self._asked_attributes: dict[str, set[str]] = {}
         self._level_vocab: dict[str, list[tuple[frozenset[str], str]]] = {}
         self._build_index()
 
@@ -283,9 +337,62 @@ class Agent:
         }
         return sorted(ids, key=lambda parent_asin: -coverage[parent_asin])
 
+    def _attribute_score(
+        self,
+        attribute: str,
+        product_terms_by_id: dict[str, frozenset[str]],
+        ids: list[str],
+    ) -> tuple[int, int]:
+        # E006 — score one adaptively-scored attribute against the exact
+        # final E004 candidate ids, reusing product terms the caller already
+        # computed once per candidate (no repeated _product_terms() calls
+        # per attribute).
+        vocab = _ATTRIBUTE_VOCAB[attribute]
+        present = [
+            value
+            for value in (product_terms_by_id[parent_asin] & vocab for parent_asin in ids)
+            if value
+        ]
+        usable_count = len(present)
+        distinct_count = len(set(present))
+        if usable_count >= 2 and distinct_count >= 2:
+            return distinct_count, usable_count
+        return 0, usable_count
+
+    def _select_attribute(self, session_id: str, ids: list[str]) -> str | None:
+        # E006 — adaptive, catalog-side ask_attribute selection. Reads only
+        # the exact final E004 candidate ids for this turn (never enlarges,
+        # reorders, or reruns retrieval) plus this session's clarification-
+        # control state. Does not touch retrieval, evidence, or ranking.
+        asked = self._asked_attributes[session_id]
+        product_terms_by_id = {
+            parent_asin: self._product_terms(parent_asin) for parent_asin in ids
+        }
+        best_attribute: str | None = None
+        best_score: tuple[int, int] = (0, 0)
+        for attribute in _ADAPTIVE_SCORED_ATTRIBUTES:
+            if attribute in asked:
+                continue
+            score = self._attribute_score(attribute, product_terms_by_id, ids)
+            if score[0] > 0 and score > best_score:
+                best_score = score
+                best_attribute = attribute
+        chosen = best_attribute
+        if chosen is None:
+            for attribute in _SPECIFIC_ATTRIBUTES:
+                if attribute not in asked:
+                    chosen = attribute
+                    break
+        if chosen is None and "other" not in asked:
+            chosen = "other"
+        if chosen is not None:
+            asked.add(chosen)
+        return chosen
+
     def reset(self, session_id: str, user_profile: dict) -> None:
         # The profile is anonymized and may be used for personalization.
         self._sessions[session_id] = []
+        self._asked_attributes[session_id] = set()
 
     def respond(
         self,
@@ -303,6 +410,7 @@ class Agent:
         expression = " OR ".join(f'"{term}"' for term in unique_terms)
         if not expression:
             recommendations: list[dict] = []
+            ids: list[str] = []
         else:
             detected = self._detect_category(frozenset(unique_terms))
             if detected is None:
@@ -345,7 +453,7 @@ class Agent:
                 ids = ids[:top_k]
             ids = self._coverage_rerank(session_id, ids)
             recommendations = [{"parent_asin": parent_asin} for parent_asin in ids]
-        ask_attribute = _ASK_SEQUENCE[turn - 1] if 1 <= turn <= len(_ASK_SEQUENCE) else None
+        ask_attribute = self._select_attribute(session_id, ids)
         return {
             "message": "Here are the closest matches I found.",
             "ask_attribute": ask_attribute,

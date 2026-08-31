@@ -659,3 +659,209 @@ Do not claim it would necessarily improve performance.
 Next:
 E006 — Adaptive attribute selection (per Architecture v1.1 roadmap; current
 best system remains E004).
+
+## E006 — Adaptive Catalog-Side Clarification
+
+Status: KEEP
+
+Milestone:
+M5 — Conversation Intelligence
+
+Baseline:
+E004 — Coverage-aware Lightweight Reranking
+
+Hypothesis:
+
+Choosing the next specific clarification attribute adaptively from
+catalog-side differentiation in the current E004 candidate set can acquire
+useful constraints earlier than E002's fixed specific-attribute order.
+
+Tested policy:
+
+Adaptive-scored attributes:
+
+- material
+- color
+- style
+- feature
+- use_case
+
+Not adaptively scored:
+
+- size
+- budget
+
+Never scored:
+
+- category
+- brand
+
+For each adaptive attribute and current final E004 candidate:
+
+value(attribute, product) =
+product terms intersect frozen attribute vocabulary
+
+An attribute is adaptively eligible only when:
+
+usable_count >= 2
+and
+distinct_count >= 2
+
+Ranking score:
+
+(distinct_count, usable_count)
+
+Tie order:
+
+material
+color
+style
+feature
+use_case
+
+If no adaptive attribute is eligible:
+
+fall back to the first not-yet-asked specific attribute from the original
+E002 order:
+
+material
+color
+size
+style
+budget
+feature
+use_case
+
+Only after all seven specific attributes are exhausted:
+
+ask `other` once.
+
+Then:
+ask_attribute = None.
+
+Per-session asked-attribute state controls clarification only.
+
+No retrieval, evidence, reranking, override, boundary-specific, LLM,
+embedding, or price-index behavior was added.
+
+The adaptive vocabulary was preregistered/frozen before evaluation and was
+not tuned afterward.
+
+Files Changed:
+- starter/agent.py
+
+Evaluation Command:
+python -m evaluator.local_evaluator
+
+E004 baseline:
+
+HitRate@10:       0.835
+MRR:              0.518149
+MTTC:             5.01
+Efficiency:       0.599
+TechnicalScore:   0.692745
+
+E006 result:
+
+HitRate@10:       0.835
+MRR:              0.522579
+MTTC:             4.515
+Efficiency:       0.6485
+TechnicalScore:   0.703974
+
+Delta vs E004:
+
+HitRate@10:       +0.000000
+MRR:              +0.004430
+MTTC:              -0.495
+Efficiency:       +0.0495
+TechnicalScore:   +0.011229
+
+Scenario results:
+
+buying:
+HR@10: 0.8625
+MRR: 0.502108
+MTTC: 3.900
+
+browsing:
+HR@10: 0.825
+MRR: 0.479415
+MTTC: 4.675
+
+intent_override:
+HR@10: 0.8
+MRR: 0.658135
+MTTC: 5.333333
+
+boundary:
+HR@10: 0.8
+MRR: 0.625
+MTTC: 5.700
+
+Scenario deltas vs E004:
+
+buying:
+HR@10: +0.000
+MRR: +0.007326
+MTTC: -0.4375
+
+browsing:
+HR@10: +0.000
+MRR: +0.004688
+MTTC: -0.6375
+
+intent_override:
+HR@10: +0.000
+MRR: -0.019167
+MTTC: +0.133333
+
+boundary:
+HR@10: +0.000
+MRR: +0.050000
+MTTC: -1.700
+
+Decision:
+KEEP.
+
+Interpretation:
+
+E006 left aggregate and per-scenario HitRate@10 unchanged while improving
+overall MRR, MTTC, Efficiency, and TechnicalScore.
+
+This is consistent with the intended mechanism:
+adaptive question selection did not add retrieval coverage, but changed
+the conversation trajectory so useful constraints were often acquired
+earlier.
+
+The largest MTTC improvement occurred in boundary, followed by browsing
+and buying.
+
+Intent_override regressed slightly in MRR and MTTC. Override semantics
+therefore remain a known limitation; E005's failed erase-all policy remains
+reverted.
+
+Do not claim adaptive clarification is optimal or semantic.
+
+Important latency correction:
+
+E006's selector creates a LOCAL per-call dictionary so each current
+candidate's `_product_terms()` is computed only once for all five adaptive
+attributes.
+
+However, this is still an ADDITIONAL `_product_terms()` lookup per candidate
+after E004's `_coverage_rerank()` has already performed its own lookup.
+
+Therefore E006 does add approximately one additional product-term SQL /
+tokenization operation per candidate per turn.
+
+The local reuse prevents roughly five repeated attribute-specific lookups
+per candidate, but does not eliminate the additional E006 lookup entirely.
+
+This is a known performance limitation for M6. It was not optimized as part
+of this experiment.
+
+Next:
+M6 — Ablation / Robustness. No E007 algorithm experiment is planned;
+algorithm capability development freezes after E006 per the human decision
+recorded in PROJECT_STATE.md.

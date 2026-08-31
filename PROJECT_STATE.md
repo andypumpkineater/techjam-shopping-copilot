@@ -1,8 +1,9 @@
 # Current Milestone
 M3 — Retrieval (complete: E001–E003 KEEP). M4 — Ranking (complete: E004
-KEEP) per Architecture v1.1 roadmap. M5 — Conversation Intelligence in
-progress: E005 (erase-all intent-override reset) tested and REVERTED; see
-"Next Milestone" below.
+KEEP) per Architecture v1.1 roadmap. M5 — Conversation Intelligence
+complete: E005 (erase-all intent-override reset) tested and REVERTED; E006
+(adaptive catalog-side clarification) tested and KEPT. M5 capability
+development is now complete; see "Next Milestone" below.
 
 # Environment
 - macOS
@@ -13,32 +14,55 @@ progress: E005 (erase-all intent-override reset) tested and REVERTED; see
 - origin: our public submission repository
 - current branch: dev
 # Current Best System
-E004 — Coverage-aware Lightweight Reranking: a pure same-set reranking pass
-over the exact E003 candidate ids. One admitted E003 message is treated as
-one evidence unit; a candidate's coverage score is the count of evidence
-units whose terms (`_terms()`) non-trivially intersect the candidate's
-indexed terms (`_terms()` over title/categories/features/details/store/
-description); candidates are sorted by coverage descending with a stable
-sort preserving original E003 order on ties. No IDF, field weights, or
-candidate-pool changes. Status: complete / KEEP. See EXPERIMENTS.md for
-full record.
+E006 — Adaptive Catalog-Side Clarification: replaces E002's fixed,
+turn-indexed `ask_attribute` sequence with adaptive, catalog-side selection
+among five specific attributes (material, color, style, feature, use_case),
+scored against the exact final E004 candidate ids for the current turn. An
+attribute is scored by intersecting each candidate's `_product_terms()`
+(computed once per candidate per call, reused across all five attributes —
+no persistent cache) with a small frozen, catalog-general vocabulary; it is
+eligible only when at least 2 candidates carry a usable value and those
+values take at least 2 distinct forms, ranked by `(distinct_count,
+usable_count)` with ties broken by a fixed enumeration order (material,
+color, style, feature, use_case). `size` and `budget` remain legal specific
+attributes but are not adaptively scored. When no attribute is adaptively
+eligible, selection falls back to the first not-yet-asked specific
+attribute in E002's original order (material, color, size, style, budget,
+feature, use_case), then `other` once, then `None`. Per-session
+asked-attribute state controls only clarification selection — no retrieval,
+evidence, reranking, override, or boundary-specific behavior was added.
+Status: complete / KEEP. See EXPERIMENTS.md for full record.
+
+Prior best: E004 — Coverage-aware Lightweight Reranking (unchanged, still
+running underneath E006 — see "Current Architecture" below).
 
 # Current Best Metrics
 
 Overall (sample_count 200):
 - HitRate@10: 0.835
-- MRR: 0.518149
-- MTTC: 5.01
-- Efficiency: 0.599
-- TechnicalScore: 0.692745
+- MRR: 0.522579
+- MTTC: 4.515
+- Efficiency: 0.6485
+- TechnicalScore: 0.703974
 
 Scenario metrics:
-- buying: HitRate@10 0.8625, MRR 0.494782, MTTC 4.3375
-- browsing: HitRate@10 0.825, MRR 0.474727, MTTC 5.3125
-- intent_override: HitRate@10 0.8, MRR 0.677302, MTTC 5.2
-- boundary: HitRate@10 0.8, MRR 0.575, MTTC 7.4
+- buying: HitRate@10 0.8625, MRR 0.502108, MTTC 3.900
+- browsing: HitRate@10 0.825, MRR 0.479415, MTTC 4.675
+- intent_override: HitRate@10 0.8, MRR 0.658135, MTTC 5.333333
+- boundary: HitRate@10 0.8, MRR 0.625, MTTC 5.700
 
-E003 (prior best): HitRate@10 0.835, MRR 0.498681, MTTC 5.01,
+E006 mechanism check: HitRate@10 is bit-identical to E004 in aggregate and
+in every scenario bucket, consistent with E006 changing only which
+`ask_attribute` is selected and never the current turn's recommendations.
+MRR (+0.004430), MTTC (-0.495), Efficiency (+0.0495), and TechnicalScore
+(+0.011229) all improved vs E004. Scenario deltas vs E004: buying MRR
++0.007326 / MTTC -0.4375; browsing MRR +0.004688 / MTTC -0.6375;
+intent_override MRR -0.019167 / MTTC +0.133333 (regressed); boundary MRR
++0.050000 / MTTC -1.700 (largest gain). Full record: EXPERIMENTS.md E006.
+
+E004 (prior best): HitRate@10 0.835, MRR 0.518149, MTTC 5.01,
+Efficiency 0.599, TechnicalScore 0.692745.
+E003: HitRate@10 0.835, MRR 0.498681, MTTC 5.01,
 Efficiency 0.599, TechnicalScore 0.686904.
 E002: HitRate@10 0.555, MRR 0.244496, MTTC 7.16,
 Efficiency 0.384, TechnicalScore 0.427649.
@@ -78,8 +102,9 @@ intent_override HitRate@10, MRR, and MTTC materially (buying, browsing, and
 boundary were unaffected), so overall TechnicalScore regressed to 0.644061.
 This rejects erase-all specifically; it does not establish that intent
 override is unsolvable, or that no override policy can help — see
-EXPERIMENTS.md E005 for the full record. Current best system remains E004
-unchanged.
+EXPERIMENTS.md E005 for the full record. At the time of E005, current best
+system remained E004 unchanged; E006 has since been tested and KEPT (see
+below), and is now the current best system.
 
 # Reference Documents
 - `docs/sources/TRACK4_PROBLEM_STATEMENT.md` — vision-level problem statement
@@ -94,15 +119,17 @@ unchanged.
 
 Two layers: what's running, and what's designed but not yet implemented.
 
-Running (`starter/agent.py`, modified per E001 + E002 + E003 + E004):
+Running (`starter/agent.py`, modified per E001 + E002 + E003 + E004 + E006;
+E005 tested and reverted):
 - in-memory SQLite FTS5/BM25 index over the full catalog
 - catalog-derived category index (full / last2 / last1 / segment
   granularities) with taxonomy-consistent relaxation and a small
   always-reachable global lexical insurance route (E001, KEEP)
-- fixed, deterministic, label-free clarification sequence indexed purely by
-  `turn` (E002, KEEP): material, color, size, style, budget, feature,
-  use_case, other, then none on turns 9-10. No adaptive selection, no
-  intent-override or boundary-specific logic
+- fixed, deterministic, label-free clarification sequence `_ASK_SEQUENCE`
+  (E002, KEEP): material, color, size, style, budget, feature, use_case,
+  other, then none on turns 9-10. Still present and byte-identical; no
+  longer indexed directly by `turn` — retained as the fallback order and
+  vocabulary source for E006 (below)
 - persistent meaningful multi-turn runtime evidence (E003, KEEP): minimal
   per-session append-only evidence list; turn 1 always admitted; later
   messages admitted unless they match one of three published
@@ -116,6 +143,16 @@ Running (`starter/agent.py`, modified per E001 + E002 + E003 + E004):
   (title/categories/features/details/store/description); binary per-unit
   credit, stable sort, no IDF or field weights. Candidate membership and
   count are unchanged from E003 — ordering only.
+- adaptive, catalog-side clarification selection (E006, KEEP): replaces the
+  turn-indexed lookup into `_ASK_SEQUENCE` with `_select_attribute()`,
+  which scores five specific attributes (material, color, style, feature,
+  use_case) against the exact final E004 candidate ids for the current
+  turn using small frozen vocabularies, falls back to `_ASK_SEQUENCE`'s
+  original seven-attribute order (including `size`/`budget`, never
+  adaptively scored) when no attribute is adaptively eligible, then
+  `other` once, then `None`. Per-session `_asked_attributes` state
+  controls selection only. No retrieval, evidence, reranking, override, or
+  boundary-specific logic added.
 - `user_profile` ignored
 
 Designed, not yet implemented — Architecture v1.1, finalized at M2:
@@ -126,22 +163,28 @@ fixed-order form. E003 implements SessionEvidence's minimal M3 append-only
 plumbing (evidence accumulation), not its full M5 semantics. E004
 implements a minimal slice of the Reranker component (plain lexical
 constraint-coverage only), not its IDF-weighted or field-weighted variants.
-Remaining, not yet implemented: adaptive attribute selection and
-intent-override supersede semantics. Intent override will default to
-superseding only conflicting evidence (category included, not privileged)
-once implemented; the erase-all variant was tested at E005 and REVERTED, so
-the architecture's supersede-conflicting default remains unimplemented and
-untested. Full E001–E006 roadmap and milestone ownership boundaries
-(M3 Retrieval / M4 Ranking / M5 Conversation Intelligence / M6 Ablation /
-M7 Submission) are in that document.
+E006 implements the ClarificationPolicy component's adaptive M5 slice
+(catalog-side pool partitioning for five specific attributes only; `size`/
+`budget` remain fixed-order-only, `category`/`brand` remain unused).
+Remaining, not yet implemented: intent-override supersede semantics.
+Intent override will default to superseding only conflicting evidence
+(category included, not privileged) once implemented; the erase-all
+variant was tested at E005 and REVERTED, so the architecture's
+supersede-conflicting default remains unimplemented and untested. Full
+E001–E006 roadmap and milestone ownership boundaries (M3 Retrieval / M4
+Ranking / M5 Conversation Intelligence / M6 Ablation / M7 Submission) are
+in that document.
 
 # Known Baseline Weaknesses
 
-Evidence only:
-- append-only evidence can retain stale/conflicting intent — no
-  intent-override supersession; an erase-all reset was tested at E005 and
-  REVERTED for regressing intent_override, so this limitation is unresolved
-- no adaptive clarification — question order is fixed, not adaptive
+- intent override still lacks semantic conflicting-evidence supersession —
+  append-only evidence can retain stale/conflicting intent; an erase-all
+  reset was tested at E005 and REVERTED for regressing intent_override, so
+  this limitation is unresolved. E006's own intent_override MRR/MTTC
+  regressed slightly vs E004, consistent with this being unaddressed
+- E006 uses small, hand-picked lexical attribute vocabularies (material,
+  color, style, feature, use_case) — catalog-general but not exhaustive;
+  `size` and `budget` are not adaptively scored at all
 - no boundary-specific semantics
 - unchanged oldest-first 40-term cap — later evidence may be truncated in
   longer sessions; this has not been measured
@@ -150,11 +193,15 @@ Evidence only:
 - naive coverage can over-credit generic/scaffold terms: a candidate can
   receive coverage credit through an attribute-name or conversational
   scaffold word without matching the actual disclosed value (E004)
-- uncached coverage product-term extraction has noticeable evaluator-time
-  overhead: `_product_terms()` does an uncached per-candidate SQL lookup
-  and tokenization per turn (E004); the official evaluator run completed
-  successfully but exceeded the 120-second foreground window and finished
-  in the background
+- E004/E006 `_product_terms()` SQL/tokenization work is uncached and causes
+  avoidable latency: `_coverage_rerank()` (E004) performs an uncached
+  per-candidate SQL lookup and tokenization per turn, and `_select_attribute()`
+  (E006) performs one additional uncached `_product_terms()` lookup per
+  candidate per turn (deduplicated only across E006's own five attributes
+  via a local per-call dict, not shared with E004's lookup); the official
+  evaluator run completed successfully but exceeded the 120-second
+  foreground window and finished in the background
+- private-set generalization remains unknown
 
 # Safety Status
 - evaluator untouched
@@ -165,48 +212,61 @@ Evidence only:
 E004 — Coverage-aware Lightweight Reranking (a pure same-set reorder of the
 final E003 candidate ids by plain, unweighted lexical constraint coverage;
 E001 retrieval, E002 clarification sequence, and E003 evidence admission/
-accumulation held frozen) remains complete, KEPT, and the current best
-system (see EXPERIMENTS.md for full record and rationale). HitRate@10,
-MTTC, and Efficiency are unchanged from E003; MRR and TechnicalScore
-improved. Do not claim coverage-aware ranking in general is optimal, or
-that IDF/field weighting would necessarily help — only the specific plain
-rule tested here is validated. Do not claim intent-override or boundary
-behavior is solved by E004 — it inherits E003's append-only evidence with
-no supersession or conflict resolution, and adds no override- or
-boundary-specific reasoning.
+accumulation held frozen) remains complete and KEPT, and continues to run
+underneath E006 unchanged (see EXPERIMENTS.md for full record and
+rationale). HitRate@10, MTTC, and Efficiency were unchanged from E003 at
+E004's own evaluation; MRR and TechnicalScore improved. Do not claim
+coverage-aware ranking in general is optimal, or that IDF/field weighting
+would necessarily help — only the specific plain rule tested here is
+validated. Do not claim intent-override or boundary behavior is solved by
+E004 — it inherits E003's append-only evidence with no supersession or
+conflict resolution, and adds no override- or boundary-specific reasoning.
 
-E005 — Explicit Intent Override Reset (M5 — Conversation Intelligence) has
-since been tested and REVERTED: explicit lexical override detection
-(regex on runtime `user_message`) combined with erasing all pre-override
-session evidence and rebuilding the query from the override message alone
-regressed HitRate@10, MRR, and MTTC on the `intent_override` bucket and
-regressed overall TechnicalScore from 0.692745 to 0.644061, while buying,
-browsing, and boundary stayed bit-identical to E004 (see EXPERIMENTS.md
-E005 for full record, deltas, and interpretation). `starter/agent.py`'s
-E005 change is pending revert to the E004 code. Do not claim intent-override
+E005 — Explicit Intent Override Reset (M5 — Conversation Intelligence) was
+tested and REVERTED: explicit lexical override detection (regex on runtime
+`user_message`) combined with erasing all pre-override session evidence and
+rebuilding the query from the override message alone regressed HitRate@10,
+MRR, and MTTC on the `intent_override` bucket and regressed overall
+TechnicalScore from 0.692745 to 0.644061, while buying, browsing, and
+boundary stayed bit-identical to E004 (see EXPERIMENTS.md E005 for full
+record, deltas, and interpretation). `starter/agent.py` was reverted to the
+E004 code before E006 was built on top of it. Do not claim intent-override
 supersession is impossible or not worth pursuing — this experiment rejects
 only the erase-all variant, not finer-grained (supersede-only-conflicting)
 approaches, which remain untested.
 
+E006 — Adaptive Catalog-Side Clarification (M5 — Conversation Intelligence)
+has since been tested and KEPT — see EXPERIMENTS.md E006 for the full
+record. It is the current best system (see "Current Best System"/"Current
+Best Metrics" above). E006 completes M5 capability development.
+
 # Next Milestone
-Per the Architecture v1.1 roadmap (`docs/M2_SYSTEM_DESIGN.md` §D), E005 was
-tested as a single pre-registered variant (erase-all) rather than all three
-variants the roadmap table lists (supersede-conflicting [default], demote,
-erase-all); the human decision after seeing the erase-all result was to
-REVERT and not test the remaining variants for now, rather than continuing
-E005. The next experiment per the roadmap's E001–E006 sequence is therefore
-**E006 — Adaptive attribute selection** (M5 — Conversation Intelligence):
-"Choosing the attribute that best partitions the current candidate pool
-beats a fixed order," with `ask_attribute` selection derived from
-runtime/catalog-side facet pool partitioning rather than the fixed E002
-`_ASK_SEQUENCE`, primary metric MTTC/Efficiency, everything else (E001
-retrieval, E003 evidence accumulation, E004 reranking) held frozen. The
+M5 — Conversation Intelligence is complete: E005 (erase-all override reset)
+REVERTED, E006 (adaptive catalog-side clarification) KEPT. The
 architecture's supersede-conflicting default override policy remains an
-open, untested item — not solved, not scheduled — should the roadmap or a
-human decision revisit intent override later. E003's oldest-first 40-term
-cap, append-only evidence contamination, and E004's generic-token/scaffold
-coverage limitations remain open items for later milestones per the
-roadmap, not solved here.
+open, untested item — not solved, not scheduled for M6 — should a future
+human decision revisit intent override. E003's oldest-first 40-term cap,
+append-only evidence contamination, E004's generic-token/scaffold coverage
+limitations, and E006's uncached extra `_product_terms()` lookup remain
+open items, not solved here.
+
+**NO E007 algorithm experiment is planned. Algorithm capability development
+freezes after E006.**
+
+Per Architecture v1.1 (`docs/M2_SYSTEM_DESIGN.md` §C), the next milestone is
+**M6 — Ablation / Robustness**, which may test/verify:
+- determinism
+- session isolation
+- reset behavior
+- exceptions / malformed input handling
+- recommendation validity / uniqueness
+- latency / runtime
+- memory where practical
+- reproducibility
+- ablation consistency
+- optional paraphrase-perturbation stress testing if time allows
+
+M6 must NOT add new capability. M7 — Submission follows M6.
 
 # Open Questions
 
