@@ -1572,3 +1572,203 @@ revert.
 
 Next: E010 — Proximity-aware Reranking, in a fresh window from this clean
 checkpoint. R009 deliberately stopped short of implementing it.
+
+## E010 — Proximity-aware Reranking
+
+Status: PREREGISTERED (written before any change to `starter/agent.py`)
+
+Classification: human-approved post-Architecture-v1.1 experiment, the third
+after E007 and E008 (see PROJECT_STATE.md "Human Decision — Freeze Lifted
+(2026-08-31)"). This does not reopen or rewrite E007 or E008 history: both
+remain REVERTED. E010 does NOT retry candidate-pool expansion, does NOT
+reintroduce E007's `POOL_MULTIPLIER`, and does NOT reintroduce E008's
+candidate-local IDF.
+
+Baseline: E006 — Adaptive Catalog-Side Clarification, plus the accepted M6
+`_product_terms()` memoization. `starter/agent.py` SHA-256
+`8615fd2164bf5dbfa46b2baf802b6a6ebeb70503aa692d0d2e1f77a145e3a67a`,
+commit `c8cc1e2`, baseline metrics HitRate@10 0.835 / MRR 0.522579 /
+MTTC 4.515 / Efficiency 0.6485 / TechnicalScore 0.703974.
+
+### Hypothesis
+
+Every ranking signal the system has used to date is a bag of words. E004
+counts how many evidence units overlap a candidate at all; E008 tried
+weighting those overlaps by candidate-local rarity. Both are invariant to
+word order: "running shoes for wide feet" and "feet wide for shoes running"
+produce identical scores against every candidate.
+
+The hypothesis under test is that **word order carries ranking signal the
+bag-of-words dimension cannot express**, and that scoring a candidate by the
+length of the longest contiguous n-gram of the user's message appearing in
+the product's own normalized text — without changing which candidates are
+considered — will improve MRR and HitRate@10.
+
+Prior evidence and its class: R009's D-3 counterfactual bench measured
+`phrase_n4` at +0.1096 TechnicalScore over the observed agent at pool depth
+100 and +0.0924 at pool depth 60. **That is diagnostic evidence on a fixed
+dialogue trajectory and is explicitly NOT a prediction of this experiment's
+result.** A real implementation changes the candidate order, hence
+`_select_attribute()`, hence what the simulator discloses, hence every later
+turn — a feedback loop the counterfactual cannot model. D-3 additionally
+biases downward by never playing turns after the real agent's hit. The
+counterfactual figure is the reason to preregister E010; it is not a
+baseline to be compared against, and an official result far below +0.11 is
+fully consistent with the hypothesis holding.
+
+### Candidate-set invariant (strict)
+
+E010 changes ranking order ONLY. Candidate membership must remain EXACTLY
+the ids `_coverage_rerank()` receives under E006 — no deeper pool, no extra
+candidate, no removed candidate, no change to how `ids` is assembled before
+the rerank call. The recommendation SET for a given turn must be identical
+to E006's; only the order within that fixed set may differ.
+
+### Frozen (unchanged)
+
+- pool depth and the 7/3/10 slot structure (`PRIMARY_SLOTS`,
+  `INSURANCE_SLOTS`, `top_k`), including the backfill branch
+- BM25 field weights `bm25(products, 0.0, 6.0, 4.0, 2.5, 2.5, 1.5, 1.0)`
+- `_terms()` and `STOPWORDS`
+- category detection, `_CATEGORY_LEVELS` / `_DETECTION_LEVELS`, the
+  relaxation ladder, and `_dominant_root()`
+- `_select_attribute()`, `_attribute_score()`, `_ATTRIBUTE_VOCAB`,
+  `_ASK_SEQUENCE`, `_SPECIFIC_ATTRIBUTES`, `_asked_attributes` state
+- E003 evidence admission (`_is_information_free`, `_INFO_FREE_PREFIXES`),
+  accumulation, and the oldest-first 40-term query cap
+- intent-override handling (still none) and candidate-generation routing
+- E004's definition of one evidence unit and its binary coverage count
+  (retained as a ranking signal, demoted to secondary — see below)
+- M6 `_product_terms()` memoization, kept byte-identical
+
+No field weighting, dense retrieval, embeddings, LLM reranking, semantic
+parsing, override handling, personalization, or new clarification logic is
+added. No new dependency: Python standard library only.
+
+### Permitted change (exactly three things)
+
+1. A new product normalized **token stream** accessor,
+   `_product_stream(parent_asin) -> str`, returning
+   `" " + " ".join(_terms(<same six indexed fields>)) + " "` — the same
+   tokenization `_product_terms()` already applies, but order-preserving and
+   space-padded so that an n-gram test is a substring test with word
+   boundaries. Backed by its own per-Agent-instance memoization cache
+   (`_product_stream_cache`), reusing the M6 pattern exactly: catalog-static,
+   immutable for the Agent's lifetime, never cleared by `reset()`.
+   `_product_terms()` and its M6 cache are left untouched.
+
+2. A new `_proximity_score(unit_grams, parent_asin) -> int` implementing the
+   rule defined below.
+
+3. `_coverage_rerank()`'s sort key only.
+
+### Tested proximity rule (frozen; n_max = 4, preregistered)
+
+`N_MAX = 4`. **This value is preregistered and will not be changed after
+seeing any result.** No sweep over n_max is part of E010; no `phrase_n3`,
+`phrase_n8`, or any other length will be tried inside this experiment.
+
+Evidence unit token sequences use the same units as E004 — one admitted
+message is one unit — but keep token ORDER, where E004 keeps only the set:
+
+```
+unit_tokens = [_terms(m) for m in session_messages if _terms(m)]
+```
+
+Units that tokenize to nothing are dropped, exactly as `_evidence_units()`
+already drops them, so the unit lists stay aligned one-to-one with E004's
+coverage units.
+
+For each unit, its contiguous n-grams for n from `min(N_MAX, len(tokens))`
+down to 2, longest first. Unigrams are excluded by construction: a
+single-token match is bag-of-words overlap, which E004's coverage already
+scores, so including it would not add an order signal.
+
+```
+proximity(P) = sum over units U of longest_match(U, P)
+
+longest_match(U, P) = the largest n in [2, N_MAX] such that some contiguous
+                      n-gram of U's token sequence occurs, with word
+                      boundaries, in _product_stream(P)
+                    = 0 if no such n exists
+```
+
+### Tested sort key (strictly lexicographic)
+
+```
+1. proximity(P) descending
+2. coverage(P) descending          (E004's existing binary unit count)
+3. incoming order, stable          (E001/E003 lexical order into the rerank)
+```
+
+Proximity is the PRIMARY key and coverage the secondary tiebreak. This is a
+deliberate reversal of E008's coverage-dominant key: E008's hypothesis was
+that coverage was right and only its ties needed help, and it failed. E010's
+hypothesis is that the bag-of-words dimension is substantially exhausted
+(R009's diagnostic finding: every re-weighting tested lands within ±0.02)
+and that order is a stronger signal, so coverage is demoted to tiebreak
+rather than kept dominant. No third signal, no weighted blend of proximity
+and coverage.
+
+The existing early return when there are no evidence units is retained;
+with no units both scores are trivially zero and the incoming order stands.
+
+### Expected channels — and what would be a warning
+
+Unlike E008, E010 is NOT expected to leave HitRate@10 and MTTC untouched.
+Candidate membership is frozen, but reordering can move the target across
+the top-10 boundary in either direction, and a changed first-hit turn is
+therefore an intended effect, not an isolation break. Concretely:
+
+- `membership` must be identical — any change here is an isolation FAILURE
+- `ask_attribute` must be identical **in the invariant-check replay**, which
+  holds the dialogue fixed; `_select_attribute()` scores the candidate SET,
+  not its order, so a difference there is an isolation FAILURE
+- `order` must change somewhere, or the mechanism is not engaging
+- `first_hit_turn` / `target rank` **may** change — expected and intended
+
+Note the scope of that second point. In the official evaluator the
+`ask_attribute` trajectory **can** legitimately diverge from E006, because a
+changed rank changes which turn the session ends on and therefore which
+disclosures follow. The invariant check is a fixed-trajectory replay, so
+within it the trajectory must hold; the official run is under no such
+constraint. These two statements are not in conflict and must not be
+conflated when reading the results.
+
+### Performance
+
+Build each unit's n-gram list ONCE per `_coverage_rerank()` call and reuse it
+across all candidates; do not rebuild per candidate. `_product_stream()` is
+memoized per Agent instance. One extra SQL SELECT per distinct candidate
+`parent_asin` over the entire run is accepted (bounded by the number of
+distinct candidates ever surfaced, not by turns). No new persistent cache
+beyond that one. No separate performance experiment is bundled into E010; a
+runtime regression is to be reported, not optimized away mid-experiment.
+
+### Procedure (preregistered, in order)
+
+1. This preregistration is committed before `starter/agent.py` is touched.
+2. `python3 -m tools.diagnostics.invariant_check dump --out trace_e006.json`
+   on the baseline code, then the same after the change, then
+   `compare ... --expect ranking-only`. **Must PASS** before proceeding. The
+   tool's `NOTE` about changed `first_hit_turn` under frozen membership is
+   expected here and is intended (see above), not a failure.
+3. D-3 offline prescreen.
+4. Exactly ONE official evaluator run:
+   `python3 -m evaluator.local_evaluator --output results_e010.json`
+5. `python3 -m tools.diagnostics.d5_paired_delta results.json
+   results_e010.json --show-sessions` — the paired transition matrix is
+   presented to the human BEFORE any KEEP/REVERT discussion.
+
+### Decision rule (preregistered)
+
+KEEP requires BOTH: (a) TechnicalScore strictly above the E006 + M6 baseline
+0.703974 on the single official run, and (b) no scenario-bucket collapse in
+the D-5 paired matrix. A TechnicalScore gain well below D-3's +0.11
+counterfactual delta is still a KEEP if both conditions hold — the
+counterfactual is not a target. If either condition fails, REVERT to E006 +
+M6 and discard the change.
+
+No parameter tuning after seeing results. No E010b with a different `N_MAX`,
+a different key order, or a weighted blend without a new, separately
+authorized preregistration.
