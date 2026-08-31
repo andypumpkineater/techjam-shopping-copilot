@@ -131,8 +131,8 @@ Prerequisites — Python, catalog placement, FTS5 check: [`docs/REPRODUCIBILITY.
 
 | | |
 |---|---|
-| Commit | `01ea9382f3f22f5db9c36f65be12b601136ad846` |
-| `starter/agent.py` SHA-256 | `47543f3dc10df61c02ffafb24f1ee1a9cd56c52dd83c7cb35aa29e082b9808ee` |
+| Commit | `769bd5f400e32887e76319036503051989240819` |
+| `starter/agent.py` SHA-256 | `1bde5aa6bdd5a52c0eb88d744c394263a64fbb0ab3606bb8a157b3b095274643` |
 | `starter/agent.py` uncommitted changes at generation | none |
 | Transcript source | generated directly by `tools/demo_session.py`; not hand-edited |
 | Customer messages | produced by the unmodified published simulator |

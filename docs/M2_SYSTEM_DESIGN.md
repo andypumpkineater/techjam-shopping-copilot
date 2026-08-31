@@ -293,14 +293,43 @@ Not settled by this document. Each needs evidence before entering the architectu
 
 ### Documented overfitting risks (observations, never design inputs)
 
-These are recorded so we recognise the trap, not so we exploit it:
+These are recorded so we recognise the trap, not so we exploit it. Risk #1 is the exception: it was
+recorded as a prohibition, later overruled by measurement, and now stands as a disclosed accepted
+risk. It is annotated in place below rather than quietly rewritten.
 
 1. **Evaluator-materialized intent cards.** The public set ships no `intent_card`, so the evaluator
    derives one from the target product. Constraint text is therefore verbatim product text. Earlier
    measurement showed category plus all disclosed constraints collapsing the pool to a median of 1 —
-   an artifact of that construction, not a property of the task. **Any mechanism relying on exact
-   substring identity is forbidden**, and would not show up as a local regression, which is what makes
-   it dangerous.
+   an artifact of that construction, not a property of the task.
+
+   **v1.1 wrote: "Any mechanism relying on exact substring identity is forbidden." That prohibition
+   was overruled by measurement at E010 and is no longer the architecture's position.** It is
+   preserved verbatim here rather than deleted, because the reasoning that produced it was sound and
+   the risk it names is real and now realised.
+
+   What overruled it: E010's proximity reranker scores each candidate by the longest contiguous
+   n-gram of the user's own words appearing literally in the product's token stream, and it is the
+   system's primary ranking signal. E011 then made it decisive by reranking a 100-deep pool before
+   truncating to ten. 98.9% of hits carry non-zero proximity and **every** rank-1 hit does, so the
+   scored path now rests on exact substring identity almost entirely — precisely the mechanism this
+   rule forbade.
+
+   The prohibition is downgraded to a **disclosed, accepted, concentrated risk**, on these grounds
+   and no others:
+
+   - `docs/final_evaluation_faq.md` §1 states the final evaluation uses the same deterministic
+     customer-message templates with no undisclosed natural-language paraphrases. That is an
+     organizer guarantee we are relying upon, not a property we verified.
+   - The rule's own danger clause still holds and is the reason this is a risk rather than a
+     non-issue: a paraphrase-driven failure **would not appear as a local regression**. If the
+     guarantee in FAQ §1 did not hold, we would not find out from the public set.
+   - D012, the paraphrase-stress diagnostic built to measure exactly this exposure, was **CANCELLED
+     with no result** once FAQ §1 was published. No number from it may be cited. The exposure is
+     therefore disclosed and argued, never measured.
+
+   This entry and the "depends on exact substring matching" bullet in `README.md`'s Limitations state
+   the same position; if they ever diverge again, the README is the reader-facing text and this is the
+   architectural record, and both must be corrected together.
 2. **Constraint slot positions.** The ordering and relative informativeness of card slots follow from
    evaluator construction order. Not admissible for clarification ordering. Removed from v1.1.
 3. **Attribute-yield distribution.** Measured over public targets' materialized cards. Replaced by
@@ -308,7 +337,11 @@ These are recorded so we recognise the trap, not so we exploit it:
 4. **Public-target category bucket sizes.** Target-derived. The catalog-side bucket distribution is
    admissible; the target-conditioned one is not.
 
-The M6 paraphrase-perturbation test exists specifically to detect whether any of these leaked in.
+The M6 roadmap planned a paraphrase-perturbation test specifically to detect whether any of these
+leaked in. **It was built as D012 and then CANCELLED with no result**, after `docs/final_evaluation_faq.md`
+§1 stated the final evaluation introduces no undisclosed paraphrases, which falsified the assumption
+the test existed to probe. No number it produced may be cited. The consequence is that risks #1-#4
+above are disclosed and argued, not empirically bounded — there is no leak detector in this project.
 
 ---
 

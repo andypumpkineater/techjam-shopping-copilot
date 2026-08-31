@@ -121,30 +121,30 @@ python3 -m evaluator.local_evaluator --output results_myrun.json
 
 ## 5. Final measured metrics
 
-Official evaluator, 200 public sessions, current system (E013):
+Official evaluator, 200 public sessions, current system (E014):
 
 | Metric | Value |
 |---|---|
-| HitRate@10 | **0.960** |
-| MRR | **0.641067** |
-| MTTC | **2.620** |
-| Efficiency | **0.838** |
-| **TechnicalScore** | **0.839920** |
+| HitRate@10 | **0.990** |
+| MRR | **0.649123** |
+| MTTC | **2.400** |
+| Efficiency | **0.860** |
+| **TechnicalScore** | **0.861737** |
 
 By scenario:
 
 | Scenario | n | HitRate@10 | MRR | MTTC |
 |---|---|---|---|---|
-| buying | 80 | 0.950 | 0.577996 | 2.200 |
-| browsing | 80 | 0.975 | 0.633408 | 2.375 |
-| intent_override | 30 | 0.933333 | 0.809722 | 4.200 |
-| boundary | 10 | 1.000 | 0.700952 | 3.200 |
+| buying | 80 | 0.9875 | 0.598135 | 1.9375 |
+| browsing | 80 | 1.000 | 0.637574 | 2.2125 |
+| intent_override | 30 | 0.966667 | 0.820833 | 3.933333 |
+| boundary | 10 | 1.000 | 0.634286 | 3.000 |
 
 Per-session outcomes for this exact run are tracked verbatim as
-`docs/diagnostics/E013_SESSIONS.json`. The three prior KEEP runs are tracked the
+`docs/diagnostics/E014_SESSIONS.json`. The five prior KEEP runs are tracked the
 same way (`E006_M6_SESSIONS.json`, `E010_SESSIONS.json`, `E011_SESSIONS.json`,
-`E012_SESSIONS.json`) and all five are bound to their code in
-`docs/PROVENANCE.json`.
+`E012_SESSIONS.json`, `E013_SESSIONS.json`) and all six are bound to their code
+in `docs/PROVENANCE.json`.
 
 These are **official evaluator results**. Oracle bounds and counterfactual
 figures appearing elsewhere in this repository (`docs/diagnostics/E006_M6_BASELINE.json`,
@@ -200,7 +200,7 @@ in this repository. There is therefore no environment-variable manifest.
 at commit `093078d` and produced output **byte-identical** to the tracked
 snapshot `docs/diagnostics/E011_SESSIONS.json` (SHA-256
 `b78820ce3bcd1045196112eed8c4cfda263b40d4844b4051671733b06a2519e3`). The current
-baseline is E013, not E011: this check has not been repeated at E012 or E013,
+baseline is E014, not E011: this check has not been repeated at E012, E013 or E014,
 because each experiment is run on the official evaluator exactly once by project
 policy. Read it as evidence about the determinism of this pipeline, not as a
 second measurement of the reported score.
@@ -269,26 +269,26 @@ verifiable:
 
 ```bash
 # artifact integrity
-shasum -a 256 docs/diagnostics/E013_SESSIONS.json
+shasum -a 256 docs/diagnostics/E014_SESSIONS.json
 
 # the code that produced it
-git show 01ea938:starter/agent.py | shasum -a 256
+git show 769bd5f:starter/agent.py | shasum -a 256
 ```
 
 ### Submitted source is the evaluated source
 
 | | SHA-256 |
 |---|---|
-| `starter/agent.py` as evaluated for the E013 result (commit `01ea938`) | `47543f3dc10df61c02ffafb24f1ee1a9cd56c52dd83c7cb35aa29e082b9808ee` |
-| `starter/agent.py` as submitted | `47543f3dc10df61c02ffafb24f1ee1a9cd56c52dd83c7cb35aa29e082b9808ee` |
+| `starter/agent.py` as evaluated for the E014 result (commit `769bd5f`) | `1bde5aa6bdd5a52c0eb88d744c394263a64fbb0ab3606bb8a157b3b095274643` |
+| `starter/agent.py` as submitted | `1bde5aa6bdd5a52c0eb88d744c394263a64fbb0ab3606bb8a157b3b095274643` |
 
 **These are the same file.** The submitted `starter/agent.py` is byte-identical
-to the agent that produced TechnicalScore 0.839920 under the official evaluator.
+to the agent that produced TechnicalScore 0.861737 under the official evaluator.
 There is no divergence to explain, and no "equivalent but modified" claim to
 audit. Verify it in one line:
 
 ```bash
-diff <(git show 01ea938:starter/agent.py) starter/agent.py && echo "byte-identical"
+diff <(git show 769bd5f:starter/agent.py) starter/agent.py && echo "byte-identical"
 ```
 
 **Reproduction status, stated plainly.** Each experiment is run on the official
@@ -296,8 +296,8 @@ evaluator exactly once, by project policy. One independent reproduction has been
 performed in this project's history — at E011, on 2026-08-31, at commit
 `093078d`, returning output byte-identical to `E011_SESSIONS.json` in 283.32 s.
 That is evidence about this pipeline's determinism. It is **not** a second run of
-the E012 or E013 results, and `docs/PROVENANCE.json` records it as such rather
-than letting it read as if it covered the current baseline.
+the E012, E013 or E014 results, and `docs/PROVENANCE.json` records it as such
+rather than letting it read as if it covered the current baseline.
 
 ---
 

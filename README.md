@@ -4,13 +4,14 @@
 
 A deterministic conversational shopping agent that opens with wide, open-ended
 questions, splits every reply into its individual constraints, retrieves broadly
-and reranks by word-order proximity — reaching **0.960 HitRate@10** and
-**0.839920 TechnicalScore** with no LLM calls, no network on the scored path,
-and no third-party runtime dependencies.
+reranks by word-order proximity, and never re-shows a page the customer has
+already passed over — reaching **0.990 HitRate@10** and **0.861737
+TechnicalScore** with no LLM calls, no network on the scored path, and no
+third-party runtime dependencies.
 
 ```text
-HitRate@10  0.960   MRR  0.641067   MTTC  2.620   Efficiency  0.838
-TechnicalScore  0.839920     tokens 0     model cost $0.00     deps 0
+HitRate@10  0.990   MRR  0.649123   MTTC  2.400   Efficiency  0.860
+TechnicalScore  0.861737     tokens 0     model cost $0.00     deps 0
 Official evaluator · 200 public sessions · unmodified evaluator/local_evaluator.py
 ```
 
@@ -23,12 +24,15 @@ product sits in a frozen 50,000-product catalog. Within at most 10 turns, the
 agent must place that exact `parent_asin` inside its Top 10.
 
 Shopping Copilot treats this as **retrieval under uncertainty** rather than a
-language problem. Every turn it does three things:
+language problem. Every turn it does four things:
 
 1. **Accumulates** the conversation into a single lexical query, discarding the
    simulator's information-free replies.
 2. **Retrieves wide, reranks, then truncates.**
-3. **Asks wide first, then narrow** — the first two turns ask an open-ended
+3. **Turns the page instead of repeating it** — if the turn brought no new
+   constraint, the ranking is unchanged, so it shows the next ten of the same
+   ranked pool rather than the ten already passed over.
+4. **Asks wide first, then narrow** — the first two turns ask an open-ended
    question; after that the Top 10 it just produced decides what it asks about.
 
 There is no model in the loop. The whole system is Python standard library:
@@ -39,22 +43,22 @@ providing BM25.
 
 Official evaluator, 200 public sessions, unmodified `evaluator/local_evaluator.py`.
 
-| Metric | Our final system (E013) | Official starter (E000) |
+| Metric | Our final system (E014) | Official starter (E000) |
 |---|---:|---:|
-| HitRate@10 | **0.960** | 0.125 |
-| MRR | **0.641067** | 0.068034 |
-| MTTC | **2.620** | 9.81 |
-| Efficiency | **0.838** | 0.119 |
-| **TechnicalScore** | **0.839920** | 0.106710 |
+| HitRate@10 | **0.990** | 0.125 |
+| MRR | **0.649123** | 0.068034 |
+| MTTC | **2.400** | 9.81 |
+| Efficiency | **0.860** | 0.119 |
+| **TechnicalScore** | **0.861737** | 0.106710 |
 
 By scenario:
 
 | Scenario | n | HR@10 | MRR | MTTC |
 |---|---:|---:|---:|---:|
-| buying | 80 | 0.950 | 0.577996 | 2.200 |
-| browsing | 80 | 0.975 | 0.633408 | 2.375 |
-| intent_override | 30 | 0.933333 | 0.809722 | 4.200 |
-| boundary | 10 | 1.000 | 0.700952 | 3.200 |
+| buying | 80 | 0.9875 | 0.598135 | 1.9375 |
+| browsing | 80 | 1.000 | 0.637574 | 2.2125 |
+| intent_override | 30 | 0.966667 | 0.820833 | 3.933333 |
+| boundary | 10 | 1.000 | 0.634286 | 3.000 |
 
 > Scenario-level results are descriptive; the boundary bucket contains only 10
 > public sessions.
@@ -62,11 +66,11 @@ By scenario:
 Every number above is bound to the exact code that produced it in
 [`docs/PROVENANCE.json`](docs/PROVENANCE.json) — commit → `starter/agent.py`
 SHA-256 → evaluator command → artifact SHA-256 → metrics. The per-session record
-is [`docs/diagnostics/E013_SESSIONS.json`](docs/diagnostics/E013_SESSIONS.json).
+is [`docs/diagnostics/E014_SESSIONS.json`](docs/diagnostics/E014_SESSIONS.json).
 Each experiment is run on the official evaluator exactly once, by policy; the
 E011 result was additionally reproduced independently on 2026-08-31 and came
 back byte-identical, which is the evidence we have for determinism of this
-pipeline. No second run of E013 has been performed.
+pipeline. No second run of E014 has been performed.
 
 ## Why It Works
 
@@ -88,6 +92,30 @@ customer volunteers; only from turn 3, once the obvious constraints are in hand,
 does the catalog-side attribute scoring above take over. This alone cut mean
 time-to-conversion by nearly a full turn: hits at turn 2 went from 38 to 94 of
 200 sessions, and the tail past turn 6 disappeared.
+
+> **Disclosed in the same breath, because the two belong together.** The product
+> claim above — open questions collect more than narrow ones — is a claim about
+> shoppers. The *measured size* of the effect is not. Asking `other` takes the
+> wildcard branch of the published simulator's `customer_reply()`, which bypasses
+> the attribute classification that every narrow question must pass through. So a
+> narrow question is filtered and `other` is not, and part of the 38 → 94 jump is
+> that asymmetry rather than shopper behaviour. We cannot separate the two from
+> the public set. We report the insight because we believe it holds for real
+> shoppers, and we report the dependence because the number attached to it was
+> produced under a simulator that makes the open question structurally cheaper.
+> This was written into the E013 preregistration as a binding obligation *before*
+> the result was known, not added afterwards.
+
+**Never re-show a page the customer has already rejected.** When a turn brings no
+new information — the customer had no further preference to give — the ranking
+inputs are unchanged, so the ten products would come back in exactly the same
+order. Those ten have already been seen and passed over, so showing them again
+cannot succeed. The agent turns the page instead: same ranked pool, next ten
+unshown candidates, resetting to the top the moment any new constraint arrives.
+This is ordinary retail behaviour, and it is also the one change in this project
+whose benefit is provable rather than measured — a repeated page has a hit
+probability of exactly zero, so rotating it can only find targets earlier or make
+no difference, and it recovered six sessions the previous system never found.
 
 **Evidence must survive the turn it arrived in — and stay separable.** Each
 admitted user message is kept and joined into one accumulated query, with the
@@ -143,14 +171,25 @@ rank 80 reach the returned ten — which is where HitRate@10 comes from.
         │  100 candidates, reordered
         ▼
   ┌───────────────────────────────────────────────────────────┐
-  │ TRUNCATE            cut to top_k = 10  ← only now          │
+  │ TRUNCATE            head = ranked[:top_k]  ← only now      │
   └───────────────────────────────────────────────────────────┘
-        │  final Top 10  ─────────────────────►  recommendations
+        │                                    │
+        │  head (the pre-rotation Top 10)    │  full 100-deep ranked pool
+        │                                    ▼
+        │            ┌──────────────────────────────────────────────────┐
+        │            │ ROTATE   evidence unchanged since last turn?     │
+        │            │            yes → offset += top_k  (next page)    │
+        │            │            no  → offset  = 0      (back to head) │
+        │            │          return ranked[offset : offset + top_k]  │
+        │            └──────────────────────────────────────────────────┘
+        │                                    │
+        │                                    └──────►  recommendations
         ▼
   ┌───────────────────────────────────────────────────────────┐
   │ ASK                 turns 1-2: open-ended "other";         │
-  │                     turn 3+: score attributes against THIS │
-  │                     Top 10, pick the most distinct  ────►  ask_attribute
+  │                     turn 3+: score attributes against the  │
+  │                     PRE-rotation head, pick the most  ───►  ask_attribute
+  │                     distinct                               │
   └───────────────────────────────────────────────────────────┘
         │
         ▼
@@ -160,7 +199,14 @@ rank 80 reach the returned ten — which is where HitRate@10 comes from.
 The loop closes: what the agent retrieves determines what it asks, and what it
 asks determines what it can retrieve next turn.
 
-Implementation: [`starter/agent.py`](starter/agent.py), 619 lines, standard
+**Rotation is deliberately kept outside that loop.** The question is chosen from
+the pre-rotation head, never from the rotated page, so which page is showing can
+never change what the agent asks — and therefore never changes what the customer
+discloses. That keeps rotation a pure output-side change: it cannot perturb the
+conversation, which is why its effect could be predicted offline exactly rather
+than approximately.
+
+Implementation: [`starter/agent.py`](starter/agent.py), 663 lines, standard
 library only.
 
 ## Quickstart
@@ -242,6 +288,15 @@ record at the same weight as successes. Six steps carry the story:
   offline); together they gain +0.0219. Preregistered and run as one indivisible
   experiment for exactly that reason. MRR rose for the first time in the project
   (+0.017547) and MTTC fell 0.955: TechnicalScore → **0.839920**.
+- **E014 — stop re-showing a rejected page.** E013's compressed clarification
+  left most sessions with nothing new to say after turn 2, so they spent the
+  remaining turns returning an identical top ten the evaluator had already judged
+  a miss. Rotating to the next unshown ten recovered 6 sessions, 4 of them the
+  exact sessions E013 had lost, and cost 0: HitRate@10 0.960 → **0.990**, MRR
+  0.641067 → **0.649123**, MTTC 2.620 → **2.400**, TechnicalScore →
+  **0.861737**. Its offline prediction matched the official run to six decimals,
+  because the change is constructed so the agent's output cannot alter the
+  simulator's input.
 
 E007 showed that deeper retrieval was harmful under the earlier coverage
 reranker. After E010 introduced a stronger word-order ranking signal, E011 showed
@@ -266,7 +321,8 @@ Full progression, official evaluator, 200 public sessions:
 | E010 | word-order proximity reranking | 0.835 | 0.653149 | 4.515 | 0.6485 | 0.743145 | KEEP |
 | E011 | pool 50, truncate after rerank | 0.930 | 0.625462 | 3.785 | 0.7215 | 0.796939 | KEEP |
 | E012 | pool 50 → 100 | 0.965 | 0.623520 | 3.575 | 0.7425 | 0.818056 | KEEP |
-| **E013** | **clause-level evidence + early open questions** | **0.960** | **0.641067** | **2.620** | **0.838** | **0.839920** | **KEEP** |
+| E013 | clause-level evidence + early open questions | 0.960 | 0.641067 | 2.620 | 0.838 | 0.839920 | KEEP |
+| **E014** | **idle-turn slate rotation** | **0.990** | **0.649123** | **2.400** | **0.860** | **0.861737** | **KEEP** |
 
 R009 is absent from the table by design: it changed no runtime behavior, so its
 expected TechnicalScore impact was exactly zero. It could not be declared complete
@@ -289,9 +345,18 @@ how much further recall-oriented work could be worth.
 **The final system is close to what its own pool depth allows.** At pool 50 the
 measured HitRate@10 was 0.930 against an offline pool-50 candidate-recall ceiling
 of 0.935 — which is precisely why the pool was doubled. At pool 100 the offline
-ceiling rises to 0.985 and measured HitRate@10 is 0.960. These ceilings are
-diagnostic figures under one specific pool depth and setting, not universal
-maxima.
+ceiling rises to 0.985, and E013 measured 0.960 against it.
+
+E014's measured 0.990 **exceeds that 0.985 figure**, which is worth explaining
+rather than presenting as a record. The ceiling is a *per-turn* quantity: the
+fraction of sessions whose target appears anywhere in the 100 candidates
+retrieved on a single turn. It bounds what one turn's top ten can contain. Page
+rotation is not bounded by it, because across a session it shows successive
+windows of several different turns' pools, and the union of those pools is larger
+than any one of them. The correct reading is that the per-turn ceiling stopped
+being the binding constraint once the returned ten were no longer drawn from a
+single turn's window — not that recall improved. These are diagnostic figures
+under one specific pool depth and setting, not universal maxima.
 
 **The remaining ranking gap is not reachable with lexical signals.** After the
 pool expansion, offline analysis found that 86% of the sessions where the target
@@ -299,7 +364,9 @@ sits below rank 1 have *no* candidate strictly outranking it — the target is t
 in groups of typically 9. Adding true BM25 as a third sort key recovers only
 +0.0029 of that, so the ties are real ambiguity rather than correctable
 mis-ordering. E013 recovered part of it from the other side, by raising the
-resolution of the score's *inputs* rather than adding a key. What is left would
+resolution of the score's *inputs* rather than adding a key; E014 sidestepped
+another part of it by showing more of the ranked pool rather than ordering it
+better. Neither touched the sort key. What is left would
 require a new signal class (semantic / embedding / LLM); we did not add one, for
 the reason given under Feasibility.
 
@@ -358,6 +425,11 @@ per-session record:
 python3 -m tools.demo_session --sample-id public_0003 --verify
 ```
 
+It does **not** show page rotation, because this session finds its target at
+turn 3 without ever running out of new constraints, so no idle turn occurs. That
+is the normal case: rotation changed the output of 7 of 200 public sessions and
+left the other 193 bit-for-bit unchanged, this transcript included.
+
 ## Limitations
 
 - **Evidence is append-only.** There is no semantic supersession, so in an intent
@@ -373,15 +445,22 @@ python3 -m tools.demo_session --sample-id public_0003 --verify
   defensive edge case, not an observed evaluator blocker.
 - **The system depends on exact substring matching.** The proximity reranker
   tests the user's own word n-grams literally against product text. Our own
-  architecture record (`docs/M2_SYSTEM_DESIGN.md`, overfitting rule #1) forbade
-  exactly this, and later experiments overruled it: 98.9% of hits have non-zero
-  proximity, and every rank-1 hit does, so E010 + E011 rest on it almost
-  entirely. The organizer states that the final evaluation uses the same
-  deterministic templates with no undisclosed paraphrasing
+  architecture record forbade exactly this — v1.1's overfitting rule #1 read
+  "any mechanism relying on exact substring identity is forbidden" — and later
+  experiments overruled it: 98.9% of hits have non-zero proximity, and every
+  rank-1 hit does, so E010 + E011 rest on it almost entirely. That rule is now
+  annotated in place in
+  [`docs/M2_SYSTEM_DESIGN.md`](docs/M2_SYSTEM_DESIGN.md) §E rather than deleted,
+  and the prohibition is downgraded there to a disclosed accepted risk with the
+  same reasoning given here, so the two documents state one position rather than
+  contradicting each other. The organizer states that the final evaluation uses
+  the same deterministic templates with no undisclosed paraphrasing
   ([`docs/final_evaluation_faq.md`](docs/final_evaluation_faq.md) §1), which is
   what makes this acceptable — but it is a concentrated risk, not a diversified
   one, and it is a written guarantee we are relying on rather than a property we
-  verified.
+  verified. We have no detector for it either: the paraphrase-stress diagnostic
+  built to measure this exposure (D012) was cancelled with no result once that
+  FAQ answer was published, so the risk is argued, never bounded.
 - **Two mechanisms are coupled to the published simulator's own semantics.** The
   clause splitter treats `;` as a boundary, which is also the character
   `customer_reply()` uses to join two constraints; and the open-ended `other`
@@ -397,15 +476,34 @@ python3 -m tools.demo_session --sample-id public_0003 --verify
 - **These results are public-set results.** Evidence from the 200 public sessions
   does not by itself establish relative ranking on the unreleased sessions,
   beyond the evaluation mechanics the organizer has stated.
-- **The final change is not uniformly good.** E013 raised the aggregate score,
-  but within it 43 sessions lost rank while 39 gained, and 4 previously-found
-  targets were lost. MRR rose because the gains were larger per session, not
-  because every session improved.
+- **The final system's gain is concentrated in a few sessions.** E014 improved
+  the aggregate score by +0.0218, and 6 of 200 sessions (3%) account for almost
+  all of it. The mechanism applies uniformly to every session that is still
+  missing its target and is provably harmless to the rest — 0 previously-found
+  targets were lost, and no scenario bucket's HitRate@10 fell — but the measured
+  magnitude rests on few sessions. This was stated in the preregistration, before
+  the result was known.
+- **E014's benefit is zero if real sessions never run out of things to say.**
+  Page rotation fires only when a turn brings no new constraint. If real
+  customers keep disclosing preferences for all ten turns, it never triggers and
+  contributes nothing — though it also costs nothing. Nothing in this project
+  measures how often that happens outside the public set.
+- **One session was made worse, by design rather than by accident.** Rotation can
+  surface a target *earlier but lower*, and the scoring rule takes the rank from
+  the first turn that hits. One boundary session went from turn 3 rank 1 to turn 2
+  rank 3 — better on time, worse on MRR, and MRR is weighted 1.5x. We did not add
+  a rule to protect it: that would be tuning to a single session in a 10-session
+  bucket, which is the exact failure mode the rest of this document is about.
+- **The predecessor's cost is documented too.** E013, which E014 builds on, raised
+  the aggregate score while 43 sessions lost rank against 39 that gained, and it
+  lost 4 previously-found targets. E014 recovered those same 4 — they turned out
+  to be sessions stuck re-showing a rejected page — but E013's rank redistribution
+  stands and was never diagnosed session by session.
 
 ## Repository Map
 
 ```text
-starter/agent.py                    the system (619 lines, stdlib only)
+starter/agent.py                    the system (663 lines, stdlib only)
 evaluator/local_evaluator.py        official evaluator — unmodified, never edited
 data/public_set.jsonl               200 labeled public sessions
 data/catalog.jsonl                  50,000-product frozen catalog (not committed)
@@ -435,11 +533,11 @@ PROJECT_STATE.md                    milestone state and decision record
 ## Submitted Source Integrity
 
 The submitted `starter/agent.py` is byte-identical to the file that produced the
-reported TechnicalScore of 0.839920 under the official evaluator.
+reported TechnicalScore of 0.861737 under the official evaluator.
 
 ```text
 starter/agent.py SHA-256
-47543f3dc10df61c02ffafb24f1ee1a9cd56c52dd83c7cb35aa29e082b9808ee
+1bde5aa6bdd5a52c0eb88d744c394263a64fbb0ab3606bb8a157b3b095274643
 ```
 
 Verify in one line:
