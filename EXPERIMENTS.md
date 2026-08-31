@@ -1074,36 +1074,49 @@ was planned.
 
 This was the prior human decision. It was explicitly lifted by a new human
 decision on 2026-08-31 for one preregistered post-v1.1 experiment. See
-"E007 — Candidate Pool Expansion before Coverage Reranking
-(PREREGISTERED)" immediately below and PROJECT_STATE.md "Human Decision —
-Freeze Lifted (2026-08-31)" for the full record and discipline. Current
-best remains E006 until E007 is evaluated and KEEP/REVERT is decided.
+"E007 — Candidate Pool Expansion before Coverage Reranking" immediately
+below and PROJECT_STATE.md "Human Decision — Freeze Lifted (2026-08-31)"
+for the full record and discipline. E007 was implemented, evaluated once
+against the official evaluator, and REVERTED by human decision — current
+best remains E006 + M6 memoization. Further post-v1.1 experiments still
+require explicit human approval; algorithm development is not to be marked
+frozen again unless the human makes that decision.
 
-## E007 — Candidate Pool Expansion before Coverage Reranking (PREREGISTERED, NOT YET IMPLEMENTED)
+## E007 — Candidate Pool Expansion before Coverage Reranking
 
-Status: planning only. Not implemented. Not evaluated. No code in
-`starter/agent.py` has changed for this entry.
+Status: REVERT
+
+Classification: post-Architecture-v1.1 experiment (see PROJECT_STATE.md
+"Human Decision — Freeze Lifted (2026-08-31)"). Not part of the original
+Architecture v1.1 E001-E006 roadmap.
+
+Baseline: E006 — Adaptive Catalog-Side Clarification, plus the accepted M6
+`_product_terms()` memoization.
 
 Hypothesis: the current lexical retrieval cutoff is too shallow for the
-E004 coverage-aware reranker. `starter/agent.py::respond()` truncates the
+E004 coverage-aware reranker. `starter/agent.py::respond()` truncated the
 candidate list to `top_k` (10) before calling `_coverage_rerank()`, both on
 the category-scoped path (`ids = ids[:top_k]` after primary/insurance
 slot-filling and backfill) and the unscoped path (`_unscoped_query(...,
-top_k)` retrieves exactly `top_k` directly). A relevant product ranked just
-outside that Top10 lexical cutoff can never be seen, let alone promoted, by
-the reranker. E007 retrieves a larger candidate pool with the SAME E001
-retrieval routes, applies the SAME E004 coverage reranker to that larger
-pool, then truncates to the contract `top_k` only after reranking.
+top_k)` retrieved exactly `top_k` directly). A relevant product ranked just
+outside that Top10 lexical cutoff could never be seen, let alone promoted,
+by the reranker. E007 tested whether giving the SAME frozen coverage
+reranker a larger lexical candidate pool improves final Top10 retrieval/
+ranking quality: retrieve a larger candidate pool with the SAME E001
+retrieval routes, apply the SAME E004 coverage reranker to that larger
+pool, then truncate to the contract `top_k` only after reranking.
 
-Pre-registered rule (ONE pool size, no tuning): a POOL_MULTIPLIER of 2x
-candidate depth. For the official `top_k = 10` contract: internal pool = 20
-candidates; primary/insurance slots scale by the same multiplier from the
-existing `PRIMARY_SLOTS = 7` / `INSURANCE_SLOTS = 3` split (14 scoped/
-relaxed primary, 6 global insurance), preserving the same 70/30 policy
-conceptually rather than introducing a second independently-tunable ratio.
-The unscoped path also retrieves at 2x depth before the same rerank and
-truncation. E006's `_select_attribute()` continues to read only the final,
-truncated `top_k` ids — never the internal pool.
+Pre-registered policy (ONE pool size, no tuning):
+- `POOL_MULTIPLIER = 2`
+- official `top_k = 10`
+- internal pool = 20
+- category-aware capacities: primary = 14, global insurance = 6
+- unscoped retrieval depth = 20
+- same E004 coverage reranker (unmodified)
+- truncate to final Top10 after reranking
+- E006 clarification selector sees only the final Top10, never the
+  internal 20-candidate pool
+- no other algorithm change
 
 Frozen (unchanged): E001 retrieval semantics (TOKEN_RE, STOPWORDS,
 `_terms`, FTS fields, BM25 expression/weights, category detection/
@@ -1114,12 +1127,83 @@ order/`_asked_attributes`; M6 `_product_terms` memoization semantics. No
 IDF, field weighting, embeddings, dense retrieval, LLM reranking, override
 handling, personalization, or new clarification logic.
 
-Discipline: preregistered before evaluation; no repeated public-set tuning
-of pool size; if E007 fails, revert to E006; no silent E007b with another
-pool size; further experiments beyond E007 require explicit human
-approval. Evaluation rule: run the official evaluator exactly once after
-implementation and compare against the E006 baseline above (HitRate@10
-0.835, MRR 0.522579, MTTC 4.515, Efficiency 0.6485, TechnicalScore
-0.703974); TechnicalScore is the final KEEP/REVERT criterion, HitRate@10 is
-the primary mechanism metric of interest. No pool-size tuning after seeing
-results.
+Validation: 26 / 26 smoke checks passed. The mechanism worked correctly in
+isolation, including a synthetic label-free rescue case where a candidate
+outside the original Top10 lexical rank was promoted into the final Top10
+by the unchanged coverage reranker once the pool was expanded to 20.
+
+### E006 baseline
+
+HitRate@10:       0.835
+MRR:              0.522579
+MTTC:             4.515
+Efficiency:       0.6485
+TechnicalScore:   0.703974
+
+Runtime: 72.97s real
+
+### E007 result
+
+HitRate@10:       0.805
+MRR:              0.497075
+MTTC:             4.94
+Efficiency:       0.606
+TechnicalScore:   0.672822
+
+Runtime: 102.17s real
+
+Delta vs E006:
+
+HitRate@10:       -0.030000
+MRR:              -0.025504
+MTTC:             +0.425  (worse)
+Efficiency:       -0.0425
+TechnicalScore:   -0.031152
+Runtime:          +29.20s (~1.40x slower)
+
+Scenario results:
+
+buying:
+HR@10 0.800, MRR 0.477371, MTTC 4.4375
+
+browsing:
+HR@10 0.8125, MRR 0.440491, MTTC 4.9125
+
+intent_override:
+HR@10 0.733333, MRR 0.631481, MTTC 5.966667
+
+boundary:
+HR@10 1.000, MRR 0.704167, MTTC 6.100
+
+Scenario deltas vs E006:
+
+buying:      HR@10 -0.0625,    MRR -0.024737, MTTC +0.5375
+browsing:    HR@10 -0.0125,    MRR -0.038924, MTTC +0.2375
+intent_override: HR@10 -0.066667, MRR -0.026654, MTTC +0.633334
+boundary:    HR@10 +0.200,     MRR +0.079167, MTTC +0.400
+
+Decision: REVERT.
+
+Interpretation:
+
+The experiment rejects the tested 2x candidate-depth policy when paired
+with the current E004 binary lexical coverage reranker. Do NOT conclude
+that deeper retrieval is inherently harmful. The narrower supported
+conclusion is: giving the current unweighted coverage reranker a
+substantially noisier 20-item lexical pool causes enough harmful
+promotions/displacement to outweigh the rescue opportunities it creates.
+The synthetic mechanism test proves deeper-pool rescue is possible, but the
+public-set net effect is negative in three of four scenario buckets
+(buying, browsing, intent_override) and on every overall metric; only
+`boundary` (n=10) improved on HR@10/MRR, and even there MTTC got worse.
+
+This result suggests candidate-depth expansion should not be revisited
+unless ranking quality itself is first improved. Do not claim that any
+future IDF/field-aware reranker would necessarily solve this — that is
+untested. No alternate pool size was tested; none should be tested without
+a new, separately-authorized preregistration.
+
+Discipline followed: preregistered before evaluation; evaluator run exactly
+once; no repeated public-set tuning of pool size; no alternate pool sizes
+tested (15/30/40/50 etc.); reverted per the pre-registered fallback rule.
+Further post-v1.1 experiments still require explicit human approval.

@@ -12,9 +12,12 @@ capability; current best algorithm remains E006. The prior human decision
 freezing algorithm capability development after E006 (no E007 planned) was
 explicitly lifted by a new human decision on 2026-08-31 for a single,
 tightly time-boxed post-v1.1 experiment — see "Human Decision — Freeze
-Lifted (2026-08-31)" below. M7 — Submission is deferred until that
-authorized experiment (E007) is finished or the human stops
-experimentation.
+Lifted (2026-08-31)" below. That experiment, E007 — Candidate Pool
+Expansion before Coverage Reranking, has since been implemented, evaluated
+once, and REVERTED by human decision (see "E007 Outcome" below and
+EXPERIMENTS.md for the full record); current best algorithm remains E006 +
+M6 memoization, and `starter/agent.py` has not yet been restored to that
+code (pending; the E007 code is still present awaiting revert).
 
 # Human Decision — Freeze Lifted (2026-08-31)
 
@@ -40,12 +43,17 @@ coverage reranker a larger lexical candidate pool improves final Top10
 retrieval/ranking quality. This is a post-Architecture-v1.1 experiment; it
 does not mean Architecture v1.1 originally specified E007.
 
-Current best remains E006 (see "Current Best Metrics" above) until E007 is
-actually evaluated and a KEEP decision is recorded. M6 robustness/
-performance findings remain valid and are not reverted.
+Current best remained E006 (see "Current Best Metrics" above) until E007
+was actually evaluated; a REVERT decision has since been recorded (see
+"E007 Outcome" immediately below). M6 robustness/performance findings
+remain valid and are not reverted.
 
-M7 — Submission is deferred until the authorized post-v1.1 experiment is
-finished (KEEP or REVERT recorded) or the human stops experimentation.
+M7 — Submission remains deferred: E007 is finished (REVERT recorded), but
+`starter/agent.py` has not yet been restored to the pre-E007 (E006 + M6)
+code — that restoration is a separate, not-yet-authorized step. Further
+post-v1.1 experiments still require explicit human approval; algorithm
+development is not to be marked frozen again unless the human makes that
+decision.
 
 Discipline for this extension:
 - E007 is preregistered before evaluation (see EXPERIMENTS.md);
@@ -53,6 +61,47 @@ Discipline for this extension:
 - if E007 fails (does not KEEP), revert to E006;
 - do not silently launch an E007b with another pool size;
 - further experiments beyond E007 require explicit human approval.
+
+## E007 Outcome (2026-08-31)
+
+Status: **REVERT** (human decision, 2026-08-31). Full record:
+EXPERIMENTS.md "E007 — Candidate Pool Expansion before Coverage
+Reranking".
+
+E006 baseline (unchanged, current best):
+HitRate@10 0.835, MRR 0.522579, MTTC 4.515, Efficiency 0.6485,
+TechnicalScore 0.703974. Runtime 72.97s real.
+
+E007 result:
+HitRate@10 0.805, MRR 0.497075, MTTC 4.94, Efficiency 0.606,
+TechnicalScore 0.672822. Runtime 102.17s real.
+
+Delta vs E006: HitRate@10 -0.030000, MRR -0.025504, MTTC +0.425 (worse),
+Efficiency -0.0425, TechnicalScore -0.031152, runtime +29.20s (~1.40x
+slower).
+
+Scenario deltas vs E006: buying HR@10 -0.0625/MRR -0.024737/MTTC +0.5375;
+browsing HR@10 -0.0125/MRR -0.038924/MTTC +0.2375; intent_override
+HR@10 -0.066667/MRR -0.026654/MTTC +0.633334; boundary HR@10 +0.200/
+MRR +0.079167/MTTC +0.400 (only bucket that improved on HR@10/MRR; MTTC
+still regressed there too).
+
+Key finding: 2x lexical candidate depth (20 internal candidates) materially
+regressed HR@10, MRR, MTTC/Efficiency, TechnicalScore, and runtime when
+used with the current binary, unweighted E004 coverage reranker. The
+implementation itself passed all 26 mechanism smoke tests, including a
+synthetic label-free rescue case proving the promotion mechanism works in
+isolation — but the public-set net effect was negative in three of four
+scenario buckets and on every overall metric. Do not conclude deeper
+retrieval is inherently harmful, or that ranking-quality improvements
+(e.g. IDF/field weighting) would necessarily fix this — both are untested.
+Candidate-depth expansion should not be revisited unless ranking quality
+itself is first improved. No alternate pool size was tested, and none
+should be without a new, separately-authorized preregistration.
+
+Therefore current production/best code target remains E006 + M6
+memoization (restoration of `starter/agent.py` to that state is pending, a
+separate not-yet-authorized step — see note above).
 
 # Environment
 - macOS
@@ -259,8 +308,10 @@ Known limitations:
 M6's own freeze/no-E007 declaration was the prior human decision. That
 freeze has since been explicitly lifted on 2026-08-31 for one preregistered
 post-v1.1 experiment (E007 — Candidate Pool Expansion) — see "Human
-Decision — Freeze Lifted (2026-08-31)" above. M7 — Submission is deferred
-until E007 is evaluated and KEEP/REVERT is decided.
+Decision — Freeze Lifted (2026-08-31)" above. E007 has been evaluated and
+REVERTED (see "E007 Outcome" above); current best algorithm remains E006.
+M7 — Submission remains deferred pending restoration of `starter/agent.py`
+to the pre-E007 code, a separate not-yet-authorized step.
 
 # Known Baseline Weaknesses
 
@@ -338,12 +389,14 @@ coverage limitations remain open items, not solved here. E006's extra
 `_product_terms()` lookup is no longer uncached — see "M6 — Robustness,
 Reproducibility, and Performance" above.
 
-**This freeze has been explicitly lifted by human decision on 2026-08-31
-for one preregistered post-v1.1 experiment: E007 — Candidate Pool
-Expansion before Coverage Reranking. See "Human Decision — Freeze Lifted
-(2026-08-31)" above for the full record and discipline. Current best
-remains E006 until E007 is evaluated and a KEEP/REVERT decision is
-recorded.**
+**This freeze was explicitly lifted by human decision on 2026-08-31 for one
+preregistered post-v1.1 experiment: E007 — Candidate Pool Expansion before
+Coverage Reranking. See "Human Decision — Freeze Lifted (2026-08-31)" above
+for the full record and discipline. E007 has been implemented, evaluated
+once, and REVERTED by human decision (see "E007 Outcome" above); current
+best remains E006 + M6 memoization. Algorithm development is not to be
+marked frozen again unless the human makes that decision, and further
+post-v1.1 experiments still require explicit human approval.**
 
 M6 — Robustness / Reproducibility / Performance is now COMPLETE (see "M6 —
 Robustness, Reproducibility, and Performance" above and EXPERIMENTS.md for
@@ -353,12 +406,14 @@ the current verified environment, and one semantics-preserving
 speedup, verified behaviorally identical to E006 across 200 sessions / 870
 turns, 0 mismatches). M6 added no new algorithm capability.
 
-Next milestone is **M7 — Submission**, now deferred: the freeze on further
-algorithm capability development has been explicitly lifted by human
+Next milestone is **M7 — Submission**, still deferred: the freeze on
+further algorithm capability development was explicitly lifted by human
 decision on 2026-08-31 for one preregistered post-v1.1 experiment, E007 —
 Candidate Pool Expansion before Coverage Reranking (see "Human Decision —
-Freeze Lifted (2026-08-31)" above). M7 proceeds once E007 is evaluated and
-KEEP/REVERT is decided, or the human stops experimentation.
+Freeze Lifted (2026-08-31)" above), which has now been evaluated and
+REVERTED (see "E007 Outcome" above). M7 proceeds once `starter/agent.py`
+is restored to the pre-E007 (E006 + M6) code — a separate, not-yet-
+authorized step — or the human directs otherwise.
 
 # Open Questions
 
