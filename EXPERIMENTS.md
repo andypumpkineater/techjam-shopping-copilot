@@ -3005,3 +3005,176 @@ D-2 puts a perfect reranker at pool 100 at TS 0.9609 against 0.9032 at pool 50, 
 the depth direction still carries measurable oracle headroom; and 87.4 % of what
 remains at pool 50 is ordering, not recall. Those two facts point in different
 directions and neither is an experiment authorization.
+
+## E012 — Candidate Pool Expansion 50 -> 100
+
+Status: **PREREGISTERED** (written and committed before any implementation)
+
+Type: E / Agent Experiment. Changes runtime behavior; decided by one official
+evaluator run.
+
+Classification: human-approved post-Architecture-v1.1 experiment, the fifth
+after E007, E008, E010 and E011. Authorized by the human decision recorded in
+PROJECT_STATE.md, "Algorithm freeze lifted (2026-09-01)", which reopened
+algorithm capability development after E011's preregistered freeze was
+declared but explicitly not executed (see PROJECT_STATE.md, "Human Decision —
+Preregistered E011 Freeze Not Executed (2026-08-31)").
+
+Baseline: E011 — Candidate Pool Expansion under a Proximity Reranker, on top of
+E010 + E006 + M6. TechnicalScore 0.796939 (HR@10 0.930, MRR 0.625462,
+MTTC 3.785, Efficiency 0.7215). Per-session snapshot:
+`docs/diagnostics/E011_SESSIONS.json`.
+
+### Hypothesis
+
+E011's own record extrapolated that deepening the pool costs MRR roughly in
+proportion to depth ("deepening the pool costs MRR (E011)... it bounds how far
+the depth direction can be pushed"), based on the single observed point
+10 -> 50 (-0.027687 MRR). An offline full-dynamic replay run outside the scored
+path (not an official evaluator run, not a public-set-tuning pass) tested that
+extrapolation directly by changing only `POOL_DEPTH` from 50 to 100 and
+replaying: HR@10 0.930 -> 0.965, MTTC 3.785 -> 3.575, MRR 0.625462 -> 0.623520
+(-0.0019, only 7% of the 10->50 MRR cost of -0.0277), offline TechnicalScore
+0.796939 -> 0.818056 (+0.0211). A 50->200 arm was also replayed offline and
+showed marginal returns flattening past 100 (100->200 added only +0.0059
+further), consistent with 100 being a principled stopping point rather than a
+scanned optimum.
+
+**Hypothesis:** E011's linear extrapolation from a single 10->50 data point does
+not hold at 50->100 under the same proximity reranker; deepening the pool
+further adds mostly *tied* candidates rather than candidates that strictly
+outrank the target, so HR@10 and MTTC continue improving while MRR cost stays
+small.
+
+**This offline number is a prediction, not a result.** It comes from a full
+dynamic replay (trajectory allowed to diverge, same replay methodology used
+throughout R009/E010/E011), not from the official evaluator, and is reported
+here only as the basis for this preregistration's expected channels — not as a
+substitute for the mandated official run in the Procedure section below.
+
+### Diagnostic support (§06 of the post-E011 audit)
+
+Same-trajectory oracle ceilings, evaluated on the actual E011 agent (respects
+intent_override gating):
+
+- E011 measured (pool 50): TS 0.796939
+- Perfect rerank of the returned 10: TS 0.888300 (+0.0914)
+- Perfect rerank of the agent's own 50-pool: TS 0.908500 (+0.1116)
+- Oracle at global BM25 top 100: TS 0.954100 (+0.1572)
+- Oracle at global BM25 top 200: TS 0.974600 (+0.1777)
+
+D-2 (cited in the E011 record) separately priced a perfect-reranker ceiling of
+0.9609 at pool 100 against 0.9032 at pool 50 — both statements price *upside*
+that E012 does not claim to fully capture; E012 tests a real reranker, not an
+oracle, against that same headroom.
+
+### Preregistered pool depth: 100 (ONE value, human decision)
+
+`POOL_DEPTH = 100`. Internal pool only; the contract `top_k` stays 10.
+
+The offline 50->200 sweep showed marginal TS gain flattening sharply after 100
+(+0.0211 at 100, only +0.0059 more at 200), so 100 was chosen as the depth
+where the curve bends, not as a scanned maximum. **No second pool depth will be
+tested if E012 fails**, matching the discipline established at E007 and E011.
+
+### Permitted change (exactly these three constants, zero logic changes)
+
+1. `POOL_DEPTH = 50 -> 100`.
+2. `PRIMARY_SLOTS = 35 -> 70`.
+3. `INSURANCE_SLOTS = 15 -> 30`.
+
+The 70/30 primary/insurance ratio established at E001 is unchanged; only the
+depth it operates at doubles. The unscoped path and the global-BM25 fetch depth
+(`max(POOL_DEPTH * 5, primary_slots + insurance_slots)`, `starter/agent.py:529`)
+are *dependent* quantities of `POOL_DEPTH` under E011's existing formula and
+rescale automatically (250 -> 500) without any code edit, exactly as E011
+documented for its own 50-depth fetch rescale. No other line changes.
+
+### Frozen (unchanged)
+
+BM25 field weights and expression; `TOKEN_RE`, `_terms`, `STOPWORDS`; the
+40-term cap; category detection, hierarchy and relaxation; `N_MAX = 4` and the
+proximity formula; the lexicographic sort key
+`(proximity, coverage, incoming order)`; E003 evidence admission and
+accumulation (one message = one evidence unit, unchanged — the clause-splitting
+idea in the audit report is E013, not part of this experiment); `_select_attribute()`
+logic, vocabularies and fallback order; M6 memoization semantics; override and
+boundary handling (still none). No embeddings, no LLM, no new dependency, no
+network.
+
+### Expected channels — and what would be a warning
+
+HR@10 up materially, MTTC down, MRR roughly flat (offline prediction -0.002).
+**Warning signal:** an MRR drop greater than 0.010 would mean the "mostly tied
+candidates" mechanism explanation is wrong and the linear-cost extrapolation
+from E011 was closer to correct than this preregistration's hypothesis.
+
+As with E011, membership changes by construction, so
+`invariant_check compare --expect ranking-only` **will fail by design and must
+not be used as a gate.** Run it without `--expect` and report the four
+channels descriptively.
+
+### Generalization / overfitting risk
+
+**Lowest of the options considered in the audit report.** Pool depth is a pure
+internal quantity — it does not touch simulator semantics, disclosure
+mechanics, or any public-set statistic. It answers a recall/ranking-tradeoff
+curve determined by the 50,000-item catalog's structure, not by the 200 public
+sessions; the same physical mechanism applies unchanged to the private 800
+sessions.
+
+### Performance
+
+Proximity scoring is O(pool x evidence units x n-grams), so doubling the pool
+is expected to roughly double the runtime already paid for E011 (282.9s). The
+offline replay measured 283s -> 444s (~1.6x, not 2x, because dynamic-replay
+runtime is dominated by other constant per-turn costs). FAQ §3 confirms no
+per-response timeout; 800 sessions at this depth is estimated at roughly 30
+minutes and will be disclosed as-measured in Feasibility reporting, not
+optimized as part of this experiment.
+
+### Procedure (preregistered, in order)
+
+1. This preregistration is committed before implementation.
+2. Implement only the three permitted constant changes; confirm via `git diff`
+   that no other line changed.
+3. Exactly **one** official evaluator run:
+   `python3 -m evaluator.local_evaluator --output results_e012.json`
+4. D-5 paired delta vs the tracked E011 per-session snapshot
+   (`docs/diagnostics/E011_SESSIONS.json`), with `--show-sessions`; report the
+   migration matrix **before** discussing KEEP/REVERT.
+5. Report the measured result against the offline prediction (TS 0.818056,
+   HR@10 0.965, MRR 0.623520, MTTC 3.575) as a comparison, not a substitute —
+   the offline number does not count as evidence for KEEP/REVERT on its own.
+
+### Decision rule (preregistered)
+
+- **KEEP** if and only if TechnicalScore > 0.796939 **and** D-5 shows no
+  hit->miss cluster **and** MRR drop <= 0.010.
+- **REVERT** otherwise — including a TechnicalScore gain accompanied by an
+  MRR drop greater than 0.010, or by a hit->miss cluster.
+- A single isolated hit->miss session is not a cluster; a concentration within
+  one scenario bucket is.
+- On REVERT, restore E011 and stop. **Do not test another pool depth** without
+  a new, separately authorized preregistration.
+
+### Interpretation set in advance
+
+- **Success** would correct E011's own recorded extrapolation ("deepening the
+  pool costs MRR... proportionally") to a narrower one: the MRR cost of pool
+  expansion under a proximity reranker is sublinear in depth, not linear, and
+  E011's 50 was not close to a local optimum.
+- **Failure** would confirm E011's extrapolation and establish that 50 was
+  close to the practical stopping point for pool-depth expansion under this
+  ranker — itself a result worth recording, not just a null outcome.
+
+### Explicitly out of scope for this experiment
+
+E013 (clause-level evidence units) and E014 (front-loaded `other` clarification)
+from the audit report are **not** part of E012 and require their own, separately
+authorized preregistration if pursued. The audit report's own diagnostic found
+that E013 and E014 tested individually *against a pool-100 baseline* each
+regress TechnicalScore alone (-0.0042 and -0.0017 respectively) and must be
+preregistered and evaluated together if authorized, exactly as the audit
+report's "must not be split" finding states — that finding is out of scope for
+E012's decision rule, which concerns pool depth only.
