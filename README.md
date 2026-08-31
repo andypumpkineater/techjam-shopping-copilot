@@ -430,8 +430,10 @@ python3 -m tools.demo_session --sample-id public_0003 --verify
 
 It does **not** show page rotation, because this session finds its target at
 turn 3 without ever running out of new constraints, so no idle turn occurs. That
-is the normal case: rotation changed the output of 7 of 200 public sessions and
-left the other 193 bit-for-bit unchanged, this transcript included.
+is the normal case: rotation changed the scored record of 9 of 200 public
+sessions — 6 misses became hits, 2 hits arrived earlier at the same rank, and
+1 arrived earlier at a worse rank — and left the other 191 records unchanged,
+this transcript included.
 
 ## Limitations
 
@@ -502,6 +504,25 @@ left the other 193 bit-for-bit unchanged, this transcript included.
   lost 4 previously-found targets. E014 recovered those same 4 — they turned out
   to be sessions stuck re-showing a rejected page — but E013's rank redistribution
   stands and was never diagnosed session by session.
+
+### What we would improve given more time
+
+- **Semantic supersession at clause granularity.** Evidence is append-only today,
+  and the all-or-nothing alternative was tested and lost (E005). The untested
+  middle is the interesting one: drop only the clause the customer contradicted,
+  keep the rest. That is the single largest known defect in the system.
+- **Bound the paraphrase risk instead of arguing it.** The proximity reranker
+  depends on literal substring identity and carries most of the score. D012 was
+  built to measure that exposure and cancelled with no result. Rebuilding it
+  would turn a disclosed risk into a measured one.
+- **A run-to-run variance estimate.** At n=200 we cannot separate a 0.02 move
+  from noise, which is why every decision here is preregistered and single-run.
+  A bootstrap over the public sessions would let small effects be judged rather
+  than shipped on argument.
+- **Retire the last simulator couplings.** The clause splitter's `;` boundary and
+  the open-ended `other` question both lean on the published simulator's own
+  semantics. Both encode real product claims, but neither is measured
+  independently of that simulator.
 
 ## Repository Map
 
