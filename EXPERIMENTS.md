@@ -2414,3 +2414,170 @@ the pre-patch replay exactly: a post-patch full D-3 run at pool 10 returned
 bit-identical to the E010 prescreen table recorded above. No official evaluator
 run was performed in this cycle, and none was warranted: there is no runtime
 change for one to measure.
+
+## E011 — Candidate Pool Expansion under a Proximity Reranker
+
+Status: **PREREGISTERED** (written and committed before any implementation)
+
+Type: E / Agent Experiment. Changes runtime behavior; decided by one official
+evaluator run.
+
+Classification: human-approved post-Architecture-v1.1 experiment, the fourth
+after E007, E008 and E010. Declared in advance to be the **LAST capability
+experiment**: on KEEP the algorithm freezes at E011, on REVERT it freezes at
+E010. Remaining effort goes to submission deliverables. See PROJECT_STATE.md.
+
+Baseline: E010 — Proximity-aware Reranking, on top of E006 + M6.
+TechnicalScore 0.743145 (HR@10 0.835, MRR 0.653149, MTTC 4.515, Eff 0.6485).
+`starter/agent.py` SHA-256 `ec58f9f4…f25e43a1`.
+
+### Hypothesis
+
+E007 expanded the candidate pool 10 -> 20 and regressed on every overall metric
+(TechnicalScore -0.031). Its stated conclusion was narrow: *the binary,
+unweighted E004 coverage reranker could not exploit a noisier deeper pool.* It
+explicitly did not establish that deeper retrieval is harmful.
+
+E010 replaced that ranker's primary key with contiguous-n-gram proximity and
+gained +0.039, entirely through MRR — because with the pool frozen at 10, a
+reranker can only reorder what retrieval already returned and can never promote
+an item across the top-10 boundary (see E010, "E011 is a pure-MRR experiment by
+construction").
+
+**Hypothesis:** the ranker is no longer the limiting factor, so giving the same
+E010 reranker a deeper candidate pool converts into a HitRate@10 gain — the
+metric E010 was structurally unable to move.
+
+Diagnostic support (D-2/D-3, `docs/diagnostics/E006_M6_BASELINE.md`; measured on
+the E006 agent, override-gated): the perfect-reranker ceiling rises from 0.7672
+at pool 10 to 0.9032 at pool 50; `phrase_n4` counterfactual TS rises from
+0.682001 (bm25 order) to 0.796421 at pool 60.
+
+**This is diagnostic evidence, not a prediction.** See "Why the counterfactual is
+weaker here than it was for E010" below.
+
+### Preregistered pool depth: 50 (ONE value, human decision)
+
+`POOL_DEPTH = 50`. Internal pool only; the contract `top_k` stays 10.
+
+D-3 measured `phrase_n4` as monotonically better at 100 than at 60 (+0.017), so
+the direct counterfactual evidence favours a deeper pool than 50. 50 was chosen
+anyway, for a reason specific to this experiment:
+
+> E010's offline prediction was *exact* because its trajectory provably could not
+> change. **E011's trajectory necessarily changes**: membership changes ->
+> `_select_attribute()` sees different candidates -> `ask_attribute` changes ->
+> what the simulator discloses changes -> every later turn changes. The
+> fixed-trajectory counterfactual therefore has materially less predictive power
+> here than it had for E010, and E007's failure mode — deeper-pool noise harming
+> ranking in ways the counterfactual did not model — lives precisely in the part
+> it cannot model.
+
+Under a one-shot-then-freeze constraint, the more conservative 5x expansion is
+preferred while its ceiling (0.9032) still leaves ~0.16 of headroom above the
+current 0.743145. **No second pool depth will be tested if E011 fails.** That
+discipline was established by E007 and is not reopened here.
+
+### The coupled change that cannot be separated — declared, not hidden
+
+Retrieve-wide-then-rerank **structurally removes the guaranteed global-insurance
+slots from the OUTPUT**. Today 3 of the returned 10 are reserved for globally
+strong lexical matches the category scope excluded; after E011 the reranker
+chooses all 10 from the merged pool, so that guarantee becomes a pool-composition
+property rather than an output property.
+
+This is not separable from pool expansion — any reranker over a wider pool must
+be allowed to choose the final 10 — so it is part of this minimal indivisible
+experiment unit rather than a second, hidden variable.
+
+**E007 had exactly this property and never disclosed it** (it also silently moved
+the split from 7/3 to 14/6), which is one reason its negative result is hard to
+attribute. E011 states it up front.
+
+Mitigation: pool composition keeps the current 70/30 ratio — primary 35,
+global insurance 15 — so the reranker selects from a pool built the same way,
+only deeper.
+
+### Permitted change (exactly these)
+
+1. `POOL_DEPTH = 50`; category-path capacities primary 35 / insurance 15.
+2. The unscoped path (`detected is None`) retrieves `POOL_DEPTH` instead of
+   `top_k`. **Both paths must change together**; leaving the unscoped path at 10
+   would make retrieval depth a hidden variable.
+3. Truncate to `top_k` **after** reranking, not before.
+
+### Frozen (unchanged)
+
+BM25 field weights and expression; `TOKEN_RE`, `_terms`, `STOPWORDS`; the 40-term
+cap; category detection, hierarchy and relaxation; `N_MAX = 4` and the proximity
+formula; the lexicographic sort key `(proximity, coverage, incoming order)`;
+E003 evidence admission and accumulation; `_select_attribute()` logic,
+vocabularies and fallback order; M6 memoization semantics; override and boundary
+handling (still none). No embeddings, no LLM, no new dependency, no network.
+
+**`N_MAX` stays frozen.** The official FAQ retired the paraphrase risk, which
+makes a longer n_max look attractive on D-3 (n8 > n4 by ~0.005 at pool 100).
+Changing it now would (a) confound E011 with a second variable — the E007
+mistake — and (b) be post-hoc public-set tuning of a preregistered constant.
+Open Question 2 does not unfreeze.
+
+### Expected channels — and what would be a warning
+
+Unlike E010, E011 is **not** isolated. Membership changes by construction;
+`ask_attribute` changes because `_select_attribute()` scores the final top-10;
+the disclosure stream and therefore every later turn changes. HR@10, MRR and
+MTTC may all move.
+
+Therefore `invariant_check compare --expect ranking-only` **will FAIL by design
+and must not be used as a gate here.** It is a descriptive tool for this
+experiment. Run it without `--expect` and report the four channels.
+
+The genuine warning signal is the opposite: **a turn whose top-10 is unchanged
+but whose `ask_attribute` changed.** That cannot happen through this mechanism
+and would indicate a leak or an unintended edit.
+
+### Performance
+
+Proximity scoring is O(pool x evidence units x n-grams), so a 5x pool is roughly
+5x that work. E010 runs 101.4 s; 250-350 s is expected. FAQ §3 confirms the
+final evaluation imposes no per-response timeout. **Runtime will be disclosed,
+not optimised** — a mid-experiment optimisation would introduce a second
+variable. Any optimisation belongs to a separate, later change.
+
+### Procedure (preregistered, in order)
+
+1. This preregistration is committed before implementation.
+2. Implement only the three permitted changes.
+3. Smoke-test the mechanism, including that the pool is genuinely 50 deep and
+   that truncation happens after reranking.
+4. `invariant_check dump` + `compare` (no `--expect`), report all four channels.
+5. D-3 prescreen at pool 50 for context only — it is not a gate and cannot
+   authorise a KEEP.
+6. Exactly **one** official evaluator run:
+   `python3 -m evaluator.local_evaluator --output results_e011.json`
+7. D-5 paired delta vs the tracked E010 per-session snapshot; report the
+   migration matrix **before** discussing KEEP/REVERT.
+
+### Decision rule (preregistered)
+
+- **KEEP** if TechnicalScore > 0.743145 **and** D-5 shows no hit->miss cluster.
+- **REVERT** if TechnicalScore <= 0.743145, **or** a hit->miss cluster appears
+  even alongside a TechnicalScore gain.
+- A single isolated hit->miss session is not a cluster; a concentration within
+  one scenario bucket is.
+- On REVERT, restore E010 and freeze there. **Do not test another pool depth.**
+- Either way, E011 is the last capability experiment.
+
+### Interpretation set in advance
+
+- **Success** confirms that E007's negative result was ranker-limited, not
+  depth-limited, and that the two-stage retrieve-wide-then-rerank architecture
+  needed a ranking signal strong enough to survive the extra noise.
+- **Failure** would show that deeper pools hurt even under a proximity ranker —
+  meaning the E007 result generalises further than its own narrow reading, and
+  that the pool-10 ceiling of 0.7977 is close to the practical limit of this
+  architecture. That is a publishable finding for the report either way.
+
+### Results
+
+*(to be filled in after the single official run — empty on purpose)*
