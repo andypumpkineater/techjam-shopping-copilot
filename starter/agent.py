@@ -24,10 +24,11 @@ _DOMINANT_ROOT_THRESHOLD = 0.99
 
 # E011 — internal candidate-pool depth. Retrieval fills a POOL_DEPTH-deep pool,
 # the E010 proximity reranker orders it, and only then is it cut to the
-# contract's top_k (10). Preregistered at 50 as a single human-chosen value; it
-# is not swept and no second depth is tried if E011 fails. The contract top_k is
-# untouched — this depth is internal to candidate generation.
-POOL_DEPTH = 50
+# contract's top_k (10). Preregistered at 50 as a single human-chosen value at
+# E011. E012 preregistered a single further value, 100, and no second depth is
+# tried if E012 fails. The contract top_k is untouched — this depth is
+# internal to candidate generation.
+POOL_DEPTH = 100
 
 # E011 — pool composition, holding E001's 70/30 primary/global-insurance ratio
 # at the new depth (was 7/3 out of a 10-deep pool that was also the output).
@@ -36,8 +37,9 @@ POOL_DEPTH = 50
 # guarantee is a property of pool composition rather than of the output. That
 # coupling is inseparable from pool expansion and is declared in the E011
 # preregistration rather than left implicit (E007 had it and did not disclose it).
-PRIMARY_SLOTS = 35
-INSURANCE_SLOTS = 15
+# E012 doubles both capacities with POOL_DEPTH, holding the 70/30 ratio.
+PRIMARY_SLOTS = 70
+INSURANCE_SLOTS = 30
 
 # E010 — longest contiguous evidence n-gram considered when scoring word-order
 # proximity. Preregistered at 4 before evaluation; not swept, not tuned after

@@ -3178,3 +3178,135 @@ regress TechnicalScore alone (-0.0042 and -0.0017 respectively) and must be
 preregistered and evaluated together if authorized, exactly as the audit
 report's "must not be split" finding states — that finding is out of scope for
 E012's decision rule, which concerns pool depth only.
+
+### E012 result (official evaluator, one run)
+
+```
+python3 -m evaluator.local_evaluator --output results_e012.json
+```
+
+HitRate@10: 0.965
+MRR:        0.623520
+MTTC:       3.575
+Efficiency: 0.7425
+TechnicalScore: 0.818056
+
+Runtime: 444.30s real (437.50s user), 98% CPU. vs E011's 282.9s (~1.57x slower).
+
+Scenario metrics:
+- buying: HitRate@10 0.9625, MRR 0.604162, MTTC 2.925
+- browsing: HitRate@10 0.9875, MRR 0.585645, MTTC 3.5
+- intent_override: HitRate@10 0.9, MRR 0.714537, MTTC 4.833333
+- boundary: HitRate@10 1.0, MRR 0.808333, MTTC 5.6
+
+Delta vs E011: HitRate@10 **+0.035000**, MRR **-0.001942**, MTTC **-0.210**,
+Efficiency +0.0210, TechnicalScore **+0.021117**, runtime +161.4s (~1.57x
+slower, reported not optimized per preregistration).
+
+### Offline prediction vs measured result
+
+The preregistration's offline full-dynamic-replay prediction was TS 0.818056
+(HR@10 0.965, MRR 0.623520, MTTC 3.575). The official evaluator result is
+**bit-identical to five decimal places on every metric**: TS 0.818056,
+HR@10 0.965, MRR 0.623520 (offline reported 0.62352, same value), MTTC 3.575.
+Runtime also matched closely: offline replay estimated 444s, the official run
+measured 444.30s real. This mirrors E011's own finding that its offline replay
+methodology (trajectory-divergence-aware, not a frozen-dialogue counterfactual)
+predicts the real evaluator bit-exactly even when the session trajectory
+changes — the same replay core is now validated a second time under a second,
+independent pool-depth change. The offline number is still reported as a
+prediction rather than substituted for the official run, per the
+preregistration's Procedure step 5; this section records that the two
+happened to coincide exactly, not that they were treated as interchangeable.
+
+### D-5 paired session delta (n=200), vs `docs/diagnostics/E011_SESSIONS.json`
+
+```
+python3 -m tools.diagnostics.d5_paired_delta docs/diagnostics/E011_SESSIONS.json results_e012.json --show-sessions
+```
+
+Transition matrix:
+- miss->hit: 7
+- hit->miss: **0**
+- hit->hit rank improved: 1
+- hit->hit rank regressed: 8
+- hit->hit unchanged: 177
+- miss->miss: 7
+
+aggregate reciprocal-rank delta: -0.388492 (MRR delta -0.001942)
+aggregate first-hit-turn delta: -42.0 (MTTC delta -0.210)
+
+Scenario breakdown:
+- boundary n=10: unchanged 10 (no change at all in this bucket)
+- browsing n=80: unchanged 72, rank regressed 3, miss->hit 3, miss->miss 1, rank improved 1
+- buying n=80: unchanged 71, rank regressed 3, miss->hit 3, miss->miss 3
+- intent_override n=30: miss->hit 1, unchanged 24, rank regressed 2, miss->miss 3
+
+Sessions:
+- miss->hit: public_0002, public_0028, public_0040, public_0092, public_0137, public_0161, public_0174
+- hit->hit rank improved: public_0122
+- hit->hit rank regressed: public_0004, public_0016, public_0027, public_0037, public_0080, public_0097, public_0098, public_0108
+
+**No hit->miss cluster: the count is zero**, matching the E011 pattern (E011 also
+had zero hit->miss sessions relative to E010). The 8 rank-regressed sessions are
+spread 3/80 buying, 3/80 browsing, 2/30 intent_override, 0/10 boundary — no
+concentration in any one bucket, and no bucket lost HitRate@10 or MTTC ground.
+
+### Decision: KEEP
+
+Human decision, 2026-09-01. All three preregistered conditions met:
+
+- (a) TechnicalScore **0.818056 > 0.796939**, by +0.021117.
+- (b) No hit->miss cluster — the count is **zero**.
+- (c) MRR drop **0.001942 <= 0.010** (the preregistered ceiling).
+
+New best system: **E012 — Candidate Pool Expansion 50 -> 100**, running on top
+of E011 + E010 + E006 + M6. Runtime measured for the record: 444.30s (~1.57x
+E011's 282.9s, ~6.05x E006+M6's 73.4s).
+
+### Interpretation
+
+**Confirmed.** E011's own extrapolation ("deepening the pool costs MRR...
+proportionally... bounds how far the depth direction can be pushed") does not
+hold from 50 to 100. The 10->50 step cost -0.027687 MRR; the 50->100 step cost
+only -0.001942 — 7.0% of the per-step rate implied by a linear reading of E011.
+The MRR cost of pool depth under this proximity reranker is sublinear, not
+linear, and 50 was not close to a local optimum: HitRate@10 continued to climb
+(+0.035, on top of E011's own +0.095 at 10->50) while MRR held almost flat and
+MTTC continued falling.
+
+**This does not establish that deeper pools are free.** 8 sessions still lost
+rank among retained hits (mechanism unchanged from E011: more candidates in the
+pool means more opportunities for a non-target candidate to score higher under
+the proximity key). The cost per unit of depth appears to be shrinking, not
+zero, and this experiment does not identify why — no per-session inspection of
+the 8 regressions or the pool-100 candidate composition was performed as part
+of this preregistration.
+
+**Not established:**
+
+- That 100 is the right depth. The offline 50->200 sweep showed marginal TS
+  gain flattening after 100 (+0.0059 from 100->200 vs +0.0211 from 50->100),
+  which motivated stopping at 100, but no further depth was run against the
+  official evaluator and none should be without a new preregistration.
+- That the 70/30 primary/insurance composition is right at this depth. Held
+  from E001/E011 to avoid a second variable; no other ratio was run.
+- That `N_MAX = 4` is optimal. Still frozen, still never swept officially.
+- That intent_override or boundary behavior is solved. intent_override
+  HitRate@10 rose to 0.9 (from 0.867) but MRR/MTTC dynamics there were not
+  separately analyzed beyond the D-5 table above; boundary is n=10 and
+  unchanged in every session (all ten stayed hits at rank unchanged).
+- That the sublinear-cost finding generalizes past pool 100, or to a
+  fundamentally different ranking rule.
+- Private-set generalization beyond what E011 already established about pool
+  depth being a catalog-structure property, not a public-set-statistic
+  property (n=200, deterministic evaluator, no variance estimate).
+
+### Next question
+
+E013/E014 (clause-level evidence units + front-loaded `other` clarification,
+from the audit report) remain unauthorized and out of scope for this decision,
+as declared in the preregistration's "Explicitly out of scope" section. Any
+further capability experiment — including E013+E014 bundled, or a further pool
+depth beyond 100 — requires separate explicit human authorization and its own
+preregistration.

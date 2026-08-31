@@ -7,14 +7,19 @@ true when written and is superseded by this one.
 
 ## Position
 
-- **Final current algorithm: E011** — Candidate Pool Expansion under a Proximity
-  Reranker, running on top of E010 + E006 + M6 + E004 + E003 + E002 + E001.
-- **E011 status: KEEP** (human decision, 2026-08-31).
-- **Official TechnicalScore: 0.796939** — HitRate@10 0.930, MRR 0.625462,
-  MTTC 3.785, Efficiency 0.7215, over the 200 public sessions.
-- Independently re-run on 2026-08-31 at commit `093078d`: output **byte-identical**
-  to `docs/diagnostics/E011_SESSIONS.json`, wall clock 283.32 s.
+**Updated 2026-09-01 — see "E012 Outcome (2026-09-01)" below for the full
+record; this Position block is kept current, not historical.**
+
+- **Final current algorithm: E012** — Candidate Pool Expansion 50 -> 100,
+  running on top of E011 + E010 + E006 + M6 + E004 + E003 + E002 + E001.
+- **E012 status: KEEP** (human decision, 2026-09-01).
+- **Official TechnicalScore: 0.818056** — HitRate@10 0.965, MRR 0.623520,
+  MTTC 3.575, Efficiency 0.7425, over the 200 public sessions.
+- Evaluator run at commit (post-`bc3ff52`/`ff8cb44`, pre-E012-commit): output
+  `results_e012.json`, wall clock 444.30 s real.
 - E005, E007, E008 remain REVERTED. D012 remains CANCELLED with no result.
+- E011 (TechnicalScore 0.796939) is prior best, unchanged in its own record
+  below and still the fallback point if a future pool-depth experiment fails.
 
 ## Algorithm freeze for submission preparation (historical — lifted 2026-09-01)
 
@@ -541,6 +546,77 @@ not be expected to redeem that oracle ceiling proportionally. Separately, 87.4%
 of what remains at pool 50 is ordering rather than recall. These facts point in
 different directions; none of them is an experiment authorization.
 
+# E012 Outcome (2026-09-01)
+
+Status: **KEEP** (human decision, 2026-09-01). Full record: EXPERIMENTS.md
+"E012 — Candidate Pool Expansion 50 -> 100". Preregistration was committed in
+`ff8cb44` before `starter/agent.py` was touched.
+
+E012 is the fifth human-approved post-Architecture-v1.1 experiment, after
+E007, E008, E010 and E011. It was authorized by the "Algorithm freeze lifted
+(2026-09-01)" human decision recorded above, which reopened capability
+development after E011's preregistered freeze was declared but explicitly not
+executed (see "Human Decision — Preregistered E011 Freeze Not Executed" above).
+
+Tested hypothesis: E011's own record extrapolated that deepening the pool
+costs MRR roughly in proportion to depth, based on the single 10 -> 50 data
+point. E012 tested whether that linear extrapolation holds from 50 to 100
+under the same E010 proximity reranker, by changing exactly three constants
+(`POOL_DEPTH` 50 -> 100, `PRIMARY_SLOTS` 35 -> 70, `INSURANCE_SLOTS` 15 -> 30)
+with zero logic changes — confirmed by `git diff` showing only those constants
+and their comments changed.
+
+E011 baseline (prior best): HitRate@10 0.930, MRR 0.625462, MTTC 3.785,
+Efficiency 0.7215, TechnicalScore 0.796939. Runtime 282.9s.
+
+E012 result (new best): HitRate@10 0.965, MRR 0.623520, MTTC 3.575,
+Efficiency 0.7425, TechnicalScore 0.818056. Runtime 444.30s.
+
+Delta vs E011: HitRate@10 **+0.035000**, MRR **-0.001942**, MTTC **-0.210**,
+Efficiency +0.0210, TechnicalScore **+0.021117**, runtime +161.4s (~1.57x
+slower, reported not optimized per preregistration).
+
+**The offline full-dynamic-replay prediction was bit-identical to the official
+result** on every metric (TS 0.818056, HR@10 0.965, MRR 0.623520, MTTC 3.575),
+and runtime matched closely (predicted 444s, measured 444.30s). This is the
+second time this replay methodology (trajectory divergence allowed, not a
+frozen-dialogue counterfactual) has predicted an official evaluator result
+exactly, after E011. The official run was still performed and is the basis
+for this decision, per the preregistration.
+
+D-5 paired transition matrix vs `docs/diagnostics/E011_SESSIONS.json` (n=200):
+miss->hit 7, **hit->miss 0**, rank improved 1, rank regressed 8, unchanged 177,
+miss->miss 7. The 8 rank regressions are spread 3/80 buying, 3/80 browsing,
+2/30 intent_override, 0/10 boundary — no cluster in any bucket.
+
+**Key finding — E011's linear-cost extrapolation was wrong; the true relationship
+is sublinear.** The 10 -> 50 step (E011) cost -0.027687 MRR. The 50 -> 100 step
+(E012) cost only -0.001942 MRR — 7.0% of the per-step rate a linear reading of
+E011 would imply. HitRate@10 continued climbing (+0.035 on top of E011's own
++0.095) and MTTC continued falling, while MRR held almost flat. 50 was not
+close to a local optimum for this architecture.
+
+**This does not establish pool depth is free of cost**: 8 sessions still lost
+rank among retained hits, the same mechanism as E011 (more pool candidates,
+more opportunities to outrank the target under the proximity key). The
+per-depth-unit cost appears to be shrinking, not zero, and no per-session
+inspection of the regressions was performed.
+
+Do **not** conclude that 100 is the optimal depth (a preregistered offline
+50->200 sweep showed marginal gain flattening past 100 — +0.0059 from 100->200
+vs +0.0211 from 50->100 — which motivated stopping at 100, but no further depth
+was run against the official evaluator), that 70/30 is the right composition at
+this depth (held from E001/E011, not swept), that `N_MAX = 4` is optimal (still
+frozen), or that intent_override or boundary behavior is solved (intent_override
+HitRate@10 rose to 0.9 from 0.867, but its MRR/MTTC dynamics were not separately
+analyzed beyond the D-5 table; boundary is n=10 and every session in it was
+unchanged by E012).
+
+E007 and E008 remain REVERTED. E010, E011 and E012 are KEPT. E013/E014 (from
+the post-E011 audit, Artifact 37161e21) remain unauthorized and out of scope
+for this decision; any further capability experiment requires separate explicit
+human authorization and its own preregistration.
+
 # Environment
 - macOS
 - Python 3.11 virtual environment at `.venv`
@@ -550,6 +626,19 @@ different directions; none of them is an experiment authorization.
 - origin: our public submission repository
 - current branch: dev
 # Current Best System
+
+E012 — Candidate Pool Expansion 50 -> 100: identical mechanism to E011 below,
+at double the depth. `POOL_DEPTH = 100` (was 50), `PRIMARY_SLOTS = 70` (was
+35), `INSURANCE_SLOTS = 30` (was 15) — the 70/30 ratio established at E001 is
+unchanged, only the depth it operates at doubles. No other line in
+`starter/agent.py` changed: the global-BM25 fetch depth that sources the
+insurance slots (`max(POOL_DEPTH * 5, primary_slots + insurance_slots)`) is a
+dependent quantity of `POOL_DEPTH` under E011's existing formula and rescales
+automatically (250 -> 500). Status: complete / KEEP. TechnicalScore 0.818056.
+See EXPERIMENTS.md for full record.
+
+Prior best: E011 — Candidate Pool Expansion under a Proximity Reranker
+(unchanged as a mechanism, still running underneath E012 at the new depth).
 
 E011 — Candidate Pool Expansion under a Proximity Reranker: retrieval fills an
 internal `POOL_DEPTH = 50` candidate pool instead of the contract's `top_k`
@@ -626,21 +715,36 @@ the secondary sort key — see "Current Architecture" below).
 
 # Current Best Metrics
 
-Overall (sample_count 200) — E011:
-- HitRate@10: 0.930
-- MRR: 0.625462
-- MTTC: 3.785
-- Efficiency: 0.7215
-- TechnicalScore: 0.796939
+Overall (sample_count 200) — E012:
+- HitRate@10: 0.965
+- MRR: 0.623520
+- MTTC: 3.575
+- Efficiency: 0.7425
+- TechnicalScore: 0.818056
 
 Scenario metrics:
+- buying: HitRate@10 0.9625, MRR 0.604162, MTTC 2.925
+- browsing: HitRate@10 0.9875, MRR 0.585645, MTTC 3.5
+- intent_override: HitRate@10 0.9, MRR 0.714537, MTTC 4.833333
+- boundary: HitRate@10 1.0, MRR 0.808333, MTTC 5.6
+
+Runtime 444.30s (~1.57x E011's 282.9s), disclosed and not optimized — the
+preregistration forbade bundling a performance experiment.
+
+E012 mechanism check / D-5 vs E011 (n=200): miss->hit 7, hit->miss 0, rank
+improved 1, rank regressed 8, unchanged 177, miss->miss 7. MRR delta -0.001942
+(only 7.0% of the 10->50 per-step MRR cost E011 recorded), MTTC delta -0.210.
+No hit->miss cluster; 8 rank regressions spread 3/80 buying, 3/80 browsing,
+2/30 intent_override, 0/10 boundary. Full record: EXPERIMENTS.md "E012".
+
+E011 (prior best): HitRate@10 0.930, MRR 0.625462, MTTC 3.785,
+Efficiency 0.7215, TechnicalScore 0.796939. Runtime 282.9s.
+
+Scenario metrics at E011:
 - buying: HitRate@10 0.925, MRR 0.605670, MTTC 3.1875
 - browsing: HitRate@10 0.95, MRR 0.584430, MTTC 3.775
 - intent_override: HitRate@10 0.866667, MRR 0.726706, MTTC 4.800
 - boundary: HitRate@10 1.0, MRR 0.808333, MTTC 5.600
-
-Runtime 282.9s (2.79x E010's 101.4s), disclosed and not optimized — the
-preregistration forbade bundling a performance experiment.
 
 E011 mechanism check: HitRate@10 +0.095000 and MTTC −0.730 improved in all
 four scenario buckets; MRR fell −0.027687 overall (three buckets down, boundary
@@ -766,14 +870,15 @@ system is **E011** — see "Current Best System" / "Current Best Metrics" above.
 Two layers: what's running, and what's designed but not yet implemented.
 
 Running (`starter/agent.py`, modified per E001 + E002 + E003 + E004 + E006 +
-E010 + E011; E005, E007, and E008 tested and reverted):
+E010 + E011 + E012; E005, E007, and E008 tested and reverted):
 - in-memory SQLite FTS5/BM25 index over the full catalog
 - catalog-derived category index (full / last2 / last1 / segment
   granularities) with taxonomy-consistent relaxation and an always-reachable
-  global lexical insurance route (E001, KEEP). Since E011 the split is
-  35 primary / 15 insurance **pool capacities** at `POOL_DEPTH = 50`, not
-  7/3 output slots; the 70/30 ratio is unchanged. Asking the same relaxation
-  ladder for 35 ids instead of 7 makes it climb to broader category levels
+  global lexical insurance route (E001, KEEP). Since E012 the split is
+  70 primary / 30 insurance **pool capacities** at `POOL_DEPTH = 100` (E011
+  introduced the 35/15-at-50 pool-capacity model; E012 doubled the depth,
+  holding the 70/30 ratio), not 7/3 output slots. Asking the same relaxation
+  ladder for 70 ids instead of 7 makes it climb to broader category levels
   more often — an intrinsic consequence of the deeper capacity, not a
   relaxation-logic change
 - fixed, deterministic, label-free clarification sequence `_ASK_SEQUENCE`
@@ -803,18 +908,21 @@ E010 + E011; E005, E007, and E008 tested and reverted):
   `_product_stream()` with a per-Agent-instance memoization cache following
   the M6 pattern (catalog-static, never cleared by `reset()`). At E010 this
   reordered exactly the returned top-10 and could therefore move MRR only.
-  **Since E011 it reranks the full 50-deep pool before truncation, so it can
-  and does move HitRate@10 and MTTC as well.** The rule itself — `N_MAX = 4`,
-  the proximity formula, the sort key — is byte-identical to E010.
-- deep-pool candidate generation with post-rerank truncation (E011, KEEP):
-  both retrieval paths fill an internal `POOL_DEPTH = 50` pool (35 category-
-  scoped + 15 global insurance, backfilled from the global list when the
-  primary route under-fills; the unscoped `detected is None` path likewise
-  retrieves 50), the E010 reranker orders the whole pool, and the cut to the
-  contract `top_k = 10` happens **after** the rerank. The contract `top_k` is
-  untouched — the depth is internal. Consequence: the reranker now chooses all
-  ten returned ids from the merged pool, so the global-insurance guarantee is a
-  property of pool composition rather than of the output.
+  **Since E011 it reranks the full pool before truncation (100-deep since
+  E012), so it can and does move HitRate@10 and MTTC as well.** The rule
+  itself — `N_MAX = 4`, the proximity formula, the sort key — is
+  byte-identical to E010.
+- deep-pool candidate generation with post-rerank truncation (E011, KEEP;
+  depth doubled at E012, KEEP): both retrieval paths fill an internal
+  `POOL_DEPTH = 100` pool (70 category-scoped + 30 global insurance,
+  backfilled from the global list when the primary route under-fills; the
+  unscoped `detected is None` path likewise retrieves 100), the E010 reranker
+  orders the whole pool, and the cut to the contract `top_k = 10` happens
+  **after** the rerank. The contract `top_k` is untouched — the depth is
+  internal. Consequence: the reranker now chooses all ten returned ids from
+  the merged pool, so the global-insurance guarantee is a property of pool
+  composition rather than of the output (declared at E011; unchanged in kind
+  at E012, just deeper).
 - adaptive, catalog-side clarification selection (E006, KEEP): replaces the
   turn-indexed lookup into `_ASK_SEQUENCE` with `_select_attribute()`,
   which scores five specific attributes (material, color, style, feature,
@@ -901,8 +1009,9 @@ deferred.
   reset was tested at E005 and REVERTED for regressing intent_override, so
   this limitation is unresolved. E006's own intent_override MRR/MTTC
   regressed slightly vs E004, consistent with this being unaddressed. After
-  E011 intent_override remains the weakest bucket (HitRate@10 0.867 against
-  0.925–1.000 elsewhere)
+  E011 intent_override remained the weakest bucket (HitRate@10 0.867 against
+  0.925–1.000 elsewhere); after E012 it rose to 0.9, though this was not
+  separately attributed to any override-specific logic (none was added)
 - E006 uses small, hand-picked lexical attribute vocabularies (material,
   color, style, feature, use_case) — catalog-general but not exhaustive;
   `size` and `budget` are not adaptively scored at all
@@ -927,25 +1036,35 @@ deferred.
   to measure it exists and is frozen (`tools/diagnostics/_paraphrase.py`)
 - E010's proximity score is unnormalized by candidate text length, so a
   verbose product has more surface in which to contain a phrase; no length
-  penalty was tested. **E011 makes this matter more**, since the rule now
-  arbitrates 50 candidates instead of 10
-- **deepening the pool costs MRR (E011)**: 10 → 50 gained +0.095 HitRate@10
-  and −0.730 MTTC but lost −0.027687 MRR, entirely through 26 retained hits
-  losing rank (11 of them from rank 1, 5 falling to rank 8) as deeper
-  candidates outrank the target under the proximity key. Zero hits were lost.
-  The loss is priced into TechnicalScore, but it bounds how far the depth
-  direction can be pushed and would matter more under a top-1-weighted metric
-- **the remaining headroom at pool 50 is ordering, not recall (E011)**:
-  HitRate@10 0.930 is 99.5% of D-2's pool-50 recall bound (0.935), and 87.4%
-  of the TechnicalScore gap to the pool-50 oracle is the MRR term. Deeper pools
-  cannot address that; only a better ranking rule can
-- E011 costs ~2.79x evaluator wall clock (101.4s → 282.9s; ~3.9x versus E006 +
-  M6's 73.4s), reported and not optimized — the preregistration forbade
-  bundling a performance experiment. No per-response timeout applies in the
-  final evaluation (FAQ §3)
-- `POOL_DEPTH = 50` was one preregistered human-chosen value; no other depth
-  was run officially, and the 70/30 pool composition was held from E001 rather
-  than tested at this depth
+  penalty was tested. **E011/E012 make this matter more**, since the rule now
+  arbitrates 100 candidates instead of 10
+- **deepening the pool costs MRR, but the cost is sublinear in depth (E011 →
+  E012 correction)**: 10 → 50 (E011) gained +0.095 HitRate@10 and −0.730 MTTC
+  but lost −0.027687 MRR, entirely through 26 retained hits losing rank (11 of
+  them from rank 1, 5 falling to rank 8). E011's record extrapolated this
+  roughly linearly ("bounds how far the depth direction can be pushed"). E012
+  (50 → 100) tested that extrapolation directly and refuted it: MRR cost was
+  only −0.001942, 7.0% of the 10→50 per-step rate, while HitRate@10 gained a
+  further +0.035 and MTTC fell further. Zero hits have ever been lost across
+  either step. The cost is priced into TechnicalScore and is not zero, but it
+  does not scale the way E011 alone suggested
+- **the remaining headroom at pool 50 was ordering, not recall (E011); pool
+  100 pushes recall further before hitting the same wall**: at pool 50,
+  HitRate@10 0.930 was 99.5% of D-2's pool-50 recall bound (0.935), and 87.4%
+  of the TechnicalScore gap to that oracle was the MRR term. E012's HitRate@10
+  0.965 shows recall was not in fact exhausted at 50 — deeper pools can still
+  move it, at a shrinking MRR cost. Whether ordering is now the binding
+  constraint at pool 100 has not been separately measured
+- E012 costs ~1.57x evaluator wall clock versus E011 (282.9s → 444.30s; ~6.05x
+  versus E006 + M6's 73.4s), reported and not optimized — the preregistration
+  forbade bundling a performance experiment. No per-response timeout applies
+  in the final evaluation (FAQ §3)
+- `POOL_DEPTH = 100` was one preregistered human-chosen value (following
+  `POOL_DEPTH = 50` at E011); no depth beyond 100 was run officially. An
+  offline (non-official) 50→200 sweep showed marginal TS gain flattening past
+  100, which motivated stopping there, but that sweep is not evidence for a
+  KEEP/REVERT decision on its own. The 70/30 pool composition was held from
+  E001 rather than tested at this depth
 - E010 costs ~1.39x evaluator wall clock (73.4s → 101.4s), reported and not
   optimized — the preregistration forbade bundling a performance experiment
 - `N_MAX = 4` was preregistered and frozen; no other value has been run
