@@ -148,17 +148,19 @@ checklist.
 
 **Updated 2026-09-01.** The repository consistency audit and the cold-start
 reproduction are now **done** — see "Post-freeze reproducibility audit
-(2026-09-01)" below. Still open: the team roster (blocking, see "Open items
-requiring human input"), and the two unverified external facts in
-`docs/REPRODUCIBILITY.md` (catalog Release URL, repository visibility). "Final
-technical report" and "figures" are judged satisfied by `README.md` against
-`docs/competition_specification.md` "Final Deliverables" — source + setup, a
-working Agent, a report covering architecture / models / cost / limitations, and
-one demonstrated multi-turn session — with team contributions the one missing
-element.
+(2026-09-01)" below. The team roster was supplied by the human on 2026-09-01 and
+is now written into `README.md` § Team, which closes the last content gap
+against `docs/competition_specification.md` "Final Deliverables": source +
+setup, a working Agent, a report covering architecture / models / cost /
+limitations, one demonstrated multi-turn session, and team contributions. "Final
+technical report" and "figures" are judged satisfied by `README.md`.
 
-**A submission-ready checkpoint is now blocked only on the team roster** and on
-the human decisions to commit, merge, and submit.
+Still open, and neither is a content gap: the two external facts that cannot be
+verified from this environment (catalog Release URL, repository visibility),
+both already disclosed in place in `docs/REPRODUCIBILITY.md`.
+
+**A submission-ready checkpoint is established.** What remains is the human
+decision to merge and submit.
 
 ## Algorithm freeze lifted (2026-09-01)
 
@@ -228,8 +230,12 @@ PHASE 2B for two other stale comments, and it is applied here for consistency.
 
 ## Open items requiring human input
 
-- Team roster and contributions (required by `docs/competition_specification.md`,
-  "Final Deliverables"). Not fabricated; a placeholder will be used until supplied.
+- ~~Team roster and contributions~~ — **SUPPLIED 2026-09-01.** Team
+  **PumpkinEater**, one member, LIU DIANDIAN. Written into `README.md` § Team,
+  together with a disclosure that development used an AI coding assistant (the
+  commit trailers record where). That disclosure is about authorship only: the
+  shipped agent still makes 0 model calls and reports 0 tokens at $0.00, so the
+  Feasibility table is unaffected.
 - Repository visibility — unverified from the working environment. No document
   claims public accessibility until confirmed.
 - Catalog Release location — our fork carries no git tags; the upstream tag

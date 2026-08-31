@@ -551,12 +551,24 @@ diff <(git show 769bd5f:starter/agent.py) starter/agent.py && echo "byte-identic
 
 ## Team
 
-> **PENDING — must be filled in before submission.** Team roster and per-member
-> contributions are a required final deliverable
-> ([`docs/competition_specification.md`](docs/competition_specification.md),
-> "Final Deliverables"; [`docs/submission_rules.md`](docs/submission_rules.md)).
-> This section is deliberately left as a marked placeholder rather than
-> populated with invented names.
+**PumpkinEater** — a one-person team.
+
+| Member | Contributions |
+|---|---|
+| **LIU DIANDIAN** | Sole member. Everything in this repository: problem analysis and architecture, the retrieval / ranking / clarification / rotation design, all E-class experiment preregistrations and the KEEP / REVERT decisions on each, the R009 diagnostic tooling, the reproducibility and provenance discipline, and this report. |
+
+Because the team is one person, every decision recorded in
+[`EXPERIMENTS.md`](EXPERIMENTS.md) and [`PROJECT_STATE.md`](PROJECT_STATE.md) —
+each freeze, each revert, each refusal to tune on the public set — is attributable
+to that one member.
+
+**Development-time tooling, disclosed for completeness.** This repository was
+written with the help of an AI coding assistant; the commit trailers in
+`git log` record where. That is a statement about how the code was *authored*,
+and it does not touch the Feasibility table above: the shipped agent makes **0
+model calls**, requires no network on the scored path, and reports 0 tokens at
+$0.00. No model runs during evaluation, and nothing in the scored path depends
+on one.
 
 ## Data Source
 
