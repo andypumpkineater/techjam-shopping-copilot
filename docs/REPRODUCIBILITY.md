@@ -59,12 +59,14 @@ mv catalog.jsonl data/catalog.jsonl
 wc -l data/catalog.jsonl        # must print 50000
 ```
 
-> **HUMAN CHECK REQUIRED.** The exact Release asset URL has not been verified
-> from this environment (no network access during preparation). What is
-> verified from git: the upstream remote carries the tag `participant-kit` at
-> commit `2a6cc8e`, and our fork `origin` carries **no tags at all** — so the
-> catalog must be taken from upstream. Do not direct judges at a Release on our
-> fork.
+> **Confirmed by the maintainer on 2026-09-01.** The organizer's
+> `participant-kit` Release and its `catalog.jsonl.gz` asset both exist upstream.
+> Take the catalog from upstream, not from this fork: verified from git, the
+> upstream remote carries the tag `participant-kit` at commit `2a6cc8e`, while
+> this fork carries **no tags at all**, so there is no Release here to take it
+> from. The confirmation was made by a human with network access; nothing in
+> this repository re-verifies it, because the scored path never touches the
+> network.
 
 ### Checksums — two different files, two different hashes
 
@@ -346,10 +348,17 @@ measurements. See section 8 for what they do and do not establish.
 
 ---
 
-## Open human checks
+## Open human checks — both closed 2026-09-01
 
-- **Catalog Release URL** — see section 2. Must be confirmed to point at the
-  organizer's upstream repository.
-- **Repository visibility** — whether this repository is reachable by judges has
-  not been verified from this environment. No document in this repository claims
-  it is publicly accessible until that is confirmed.
+Both items that stood open here were confirmed by the maintainer on 2026-09-01
+and are retained rather than deleted, so the record shows what was checked:
+
+- **Catalog Release URL** — *closed.* The organizer's `participant-kit` Release
+  and its `catalog.jsonl.gz` asset exist upstream. Section 2 points at the
+  organizer's repository, which is where the catalog must be taken from.
+- **Repository visibility** — *closed.* This repository is public and reachable
+  by judges.
+
+Both were confirmed by a human with network access. Nothing in this repository
+verifies either mechanically, and neither affects the scored path, which is
+offline by construction.

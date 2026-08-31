@@ -236,12 +236,26 @@ PHASE 2B for two other stale comments, and it is applied here for consistency.
   commit trailers record where). That disclosure is about authorship only: the
   shipped agent still makes 0 model calls and reports 0 tokens at $0.00, so the
   Feasibility table is unaffected.
-- Repository visibility — unverified from the working environment. No document
-  claims public accessibility until confirmed.
-- Catalog Release location — our fork carries no git tags; the upstream tag
-  `participant-kit` exists at `2a6cc8e`. Reproduction instructions point at the
-  organizer's upstream repository pending confirmation.
-- `dev` -> `main` merge and push remain deferred by human decision.
+- ~~Repository visibility~~ — **CONFIRMED public, 2026-09-01.**
+- ~~Catalog Release location~~ — **CONFIRMED 2026-09-01.** The organizer's
+  `participant-kit` Release and its `catalog.jsonl.gz` asset exist upstream;
+  `docs/REPRODUCIBILITY.md` §2 correctly points there and not at this fork,
+  which carries no tags.
+- ~~`dev` -> `main` merge and push~~ — **DONE 2026-09-01.** History was linear
+  (`main` was a direct ancestor of `exp/post-e011`), so `main` was advanced by
+  **fast-forward**: no merge commit, no new objects, no rewritten SHA. `main`,
+  `dev` and `exp/post-e011` — local and on `origin` — now all point at
+  `0a55346`. `dev` was advanced too because it had been left publicly
+  advertising the superseded E011 agent (`cb46d467…`), and `main` before the
+  merge still carried the organizer's weak-BM25 starter, so a judge cloning the
+  default branch would have received the starter rather than this submission.
+  Post-merge smoke checks on `main` all passed: `starter/agent.py` SHA-256
+  `1bde5aa6…` unchanged, all PROVENANCE bindings verify, 41 tests pass, demo
+  verification passes, working tree clean, `evaluator/` and
+  `data/public_set.jsonl` byte-identical to the organizer's `2a6cc8e`.
+
+**No open items requiring human input remain.** What is left is the Devpost
+submission itself.
 
 # Milestone Record — M3 through M6 (historical; superseded by M7 above)
 M3 — Retrieval (complete: E001–E003 KEEP). M4 — Ranking (complete: E004
