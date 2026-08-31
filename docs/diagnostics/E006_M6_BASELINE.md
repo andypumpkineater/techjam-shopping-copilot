@@ -54,6 +54,13 @@ R009 regression: identical to the previously recorded E006 + M6 baseline in
 every overall field, every scenario field, and all 200 per-session outcomes
 (0 mismatches). Wall clock 73.4 s.
 
+Those 200 per-session outcomes are preserved verbatim as
+[`E006_M6_SESSIONS.json`](E006_M6_SESSIONS.json) — the evaluator's own output
+for this run, and the tracked `before` side for D-5. At the time this snapshot
+was written they existed only in a gitignored working `results.json`; that gap
+was closed when E010 was kept. See `tools/diagnostics/README.md`, "Result
+snapshots".
+
 ---
 
 ## 2. Candidate oracle — D-1 (diagnostic evidence)
