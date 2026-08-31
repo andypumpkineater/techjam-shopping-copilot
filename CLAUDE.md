@@ -23,9 +23,21 @@ or TechnicalScore.
 # Reference Document Hierarchy
 
 - Authoritative / executable spec (source of truth for scoring and interface
-  behavior): `docs/competition_specification.md`, `docs/agent_api_contract.json`,
-  `docs/evaluation_config.json`, and `evaluator/local_evaluator.py`. When in
-  doubt, the evaluator code wins.
+  behavior), by what each document governs:
+  - `docs/competition_specification.md` — the task, the evaluation protocol,
+    and the system contract.
+  - `docs/final_evaluation_faq.md` — the final-evaluation process, code freeze,
+    network / API / credential policy, hardware and runtime expectations, data
+    and derived-artifact policy, and submission / judging clarifications.
+  - `docs/agent_api_contract.json` — the machine-readable Agent interface.
+  - `docs/evaluation_config.json` — the scoring configuration.
+  - `evaluator/local_evaluator.py` — the executable semantics of the published
+    evaluator. When in doubt about scoring or interface behavior, the
+    evaluator code wins.
+- Where `docs/final_evaluation_faq.md` explicitly covers a final-evaluation
+  matter, it supersedes earlier submission or process wording elsewhere in the
+  documentation set. That precedence is limited to the matters the FAQ actually
+  covers and does not extend beyond them.
 - `docs/sources/TRACK4_PROBLEM_STATEMENT.md` is a vision-level problem
   statement (directional goals: dual-track routing, hybrid/LLM semantic
   ranking, dynamic context programming, etc.). It is **not** an executable
@@ -47,7 +59,10 @@ or TechnicalScore.
 - Never commit API keys or secrets.
 - Only recommend valid catalog `parent_asin` values.
 - Respect the 10-turn protocol.
-- Do not assume final judging has network access.
+- Final evaluation permits network access and external APIs per
+  `docs/final_evaluation_faq.md` §2. Our final scored path deliberately
+  remains offline, stdlib-only, deterministic, and model-free as a design
+  choice, not as an organizer-imposed restriction.
 - Report model/token/cost information honestly.
 - Never hard-code public sample IDs, target mappings, evaluator-generated hidden fields, or public-set-specific simulator behavior to inflate local scores.
 

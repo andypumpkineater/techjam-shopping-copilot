@@ -1,0 +1,36 @@
+# TechJam 2026 Track 4 - Conversational E-Commerce Search
+# Shopping Copilot - runtime dependency manifest
+#
+# THERE ARE NO THIRD-PARTY RUNTIME DEPENDENCIES.
+#
+# This file is intentionally empty of packages. It exists to satisfy the
+# dependency-manifest requirement in docs/submission_rules.md ("Allowed
+# Submission Contents") and docs/final_evaluation_faq.md section 7, and to make
+# the absence of dependencies an explicit, checkable statement rather than an
+# omission.
+#
+# Scored path (starter/agent.py) imports, all standard library:
+#   json, re, sqlite3, collections, pathlib
+#
+# Official evaluator (evaluator/local_evaluator.py) imports, all standard
+# library:
+#   argparse, json, random, re, statistics, uuid, collections, pathlib
+#
+# Offline diagnostics (tools/diagnostics/) and tests (tests/) likewise use only
+# the standard library.
+#
+# PYTHON VERSION
+#   Verified on CPython 3.11.15 (macOS, Darwin 25.5.0, arm64), with the
+#   bundled SQLite 3.53.4 and the FTS5 extension available.
+#   The organizer README recommends "Python 3.10 or later". We report only
+#   the version we actually tested and do not claim a broader range.
+#
+# INSTALLATION
+#   Nothing to install. A virtual environment is optional:
+#     python3 -m venv .venv
+#   No `pip install` step is required to run the agent, the evaluator,
+#   the diagnostics, or the tests.
+#
+# The agent requires SQLite compiled with FTS5. This ships with CPython's
+# bundled SQLite on all platforms we tested; docs/REPRODUCIBILITY.md gives a
+# one-line command to verify it before running.

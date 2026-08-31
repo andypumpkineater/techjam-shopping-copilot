@@ -1,4 +1,105 @@
-# Current Milestone
+# Current Milestone — M7 Submission / Deliverables (2026-08-31)
+
+**Milestone advanced from M6 to M7 by human decision on 2026-08-31.** Everything
+below this section is retained unedited as the chronological record; where an
+older section still says "M7 — Submission remains deferred", that statement was
+true when written and is superseded by this one.
+
+## Position
+
+- **Final current algorithm: E011** — Candidate Pool Expansion under a Proximity
+  Reranker, running on top of E010 + E006 + M6 + E004 + E003 + E002 + E001.
+- **E011 status: KEEP** (human decision, 2026-08-31).
+- **Official TechnicalScore: 0.796939** — HitRate@10 0.930, MRR 0.625462,
+  MTTC 3.785, Efficiency 0.7215, over the 200 public sessions.
+- Independently re-run on 2026-08-31 at commit `093078d`: output **byte-identical**
+  to `docs/diagnostics/E011_SESSIONS.json`, wall clock 283.32 s.
+- E005, E007, E008 remain REVERTED. D012 remains CANCELLED with no result.
+
+## Algorithm freeze for submission preparation
+
+**Algorithm capability development is frozen for the duration of submission
+preparation** (human decision, 2026-08-31). No change to candidate generation,
+BM25, pool depth, reranking, the proximity formula, `N_MAX`, clarification
+policy, `_select_attribute()`, evidence accumulation, override behavior, category
+logic, `STOPWORDS`/tokenizer, or retrieval/ranking weights. No new E-class
+experiment. No public-set tuning.
+
+`starter/agent.py` is untouched. The only changes made during submission
+preparation are documentation, packaging, and provenance files that do not touch
+the scored path.
+
+A comment/docstring-only correction to `starter/agent.py` was authorized during
+PHASE 2B, applied, and then **withdrawn by human decision** so that the submitted
+agent source stays byte-identical to the evaluated one. Two stale comments (a
+"weak baseline" class docstring and a `user_profile` personalization comment)
+therefore remain in the file and are noted in the final report's limitations
+rather than corrected in place.
+
+Whether algorithm capability development reopens after submission preparation is
+**not decided**. It would require a separate explicit human authorization and its
+own preregistration, exactly as before.
+
+## Submission source provenance
+
+The submitted `starter/agent.py` is **byte-identical** to the agent evaluated for
+the E011 result:
+
+- evaluated (commit `093078d`): `cb46d467a114c87ef002613219be45f509e7ecbc292af15858229e1d168d0d92`
+- submitted: `cb46d467a114c87ef002613219be45f509e7ecbc292af15858229e1d168d0d92`
+
+Same file, same hash, no divergence. `EXPERIMENTS.md` needed no edit and received
+none. Full statement: `docs/REPRODUCIBILITY.md` section 10 and
+`docs/PROVENANCE.json`.
+
+## Official documentation authority
+
+Upstream `9c9e7c9` ("Publish Track 4 final evaluation FAQ") was merged into `dev`
+as `fbe8ca3` on 2026-08-31. `docs/final_evaluation_faq.md` now exists in-branch
+and is authoritative for final-evaluation matters it covers; the pre-merge copies
+of `docs/submission_rules.md` and `docs/competition_specification.md` are
+superseded history. See CLAUDE.md, "Reference Document Hierarchy". The merge
+touched no runtime, evaluator, or data file.
+
+## M7 progress
+
+Completed in submission preparation so far:
+
+- official documentation synchronization (merge `fbe8ca3`);
+- CLAUDE.md authority hierarchy and network rule updated to match the official FAQ;
+- `requirements.txt` — explicit no-third-party-dependency manifest;
+- `docs/REPRODUCIBILITY.md` — environment, catalog prerequisite, setup, evaluator
+  command, measured metrics, runtime, cost, determinism limits, final-results
+  retention procedure, and commit/SHA provenance procedure;
+- `docs/PROVENANCE.json` — one manifest binding every retained result to
+  the commit, agent SHA-256, evaluator command, artifact SHA-256, and metrics,
+  with each artifact labeled official or diagnostic;
+- a narrowed `.gitignore` rule (`results*.json` -> `/results*.json`), so that a
+  tracked artifact under `docs/` can no longer be swallowed by the root-scratch
+  ignore.
+
+Not yet done: README rewrite, final technical report, figures, the demonstrated
+multi-turn session required by `docs/final_evaluation_faq.md` section 7, agent
+test coverage, repository consistency audit, cold-start reproduction, and the
+final submission checklist.
+
+**A submission-ready checkpoint has NOT yet been established.** The repository is
+not yet in a state that could be submitted as-is: the README is still the
+organizer's starter README and describes the weak BM25 baseline rather than this
+system.
+
+## Open items requiring human input
+
+- Team roster and contributions (required by `docs/competition_specification.md`,
+  "Final Deliverables"). Not fabricated; a placeholder will be used until supplied.
+- Repository visibility — unverified from the working environment. No document
+  claims public accessibility until confirmed.
+- Catalog Release location — our fork carries no git tags; the upstream tag
+  `participant-kit` exists at `2a6cc8e`. Reproduction instructions point at the
+  organizer's upstream repository pending confirmation.
+- `dev` -> `main` merge and push remain deferred by human decision.
+
+# Milestone Record — M3 through M6 (historical; superseded by M7 above)
 M3 — Retrieval (complete: E001–E003 KEEP). M4 — Ranking (complete: E004
 KEEP) per Architecture v1.1 roadmap. M5 — Conversation Intelligence
 complete: E005 (erase-all intent-override reset) tested and REVERTED; E006
@@ -631,6 +732,15 @@ system is **E011** — see "Current Best System" / "Current Best Metrics" above.
 - Authoritative scoring/interface spec: `docs/competition_specification.md`,
   `docs/agent_api_contract.json`, `docs/evaluation_config.json`,
   `evaluator/local_evaluator.py`.
+- `docs/final_evaluation_faq.md` (merged from upstream `9c9e7c9`) — authoritative
+  for the final-evaluation process, code freeze, network/API/credential policy,
+  hardware and runtime expectations, data policy, and submission/judging
+  clarifications. Supersedes earlier submission/process wording on the matters it
+  covers.
+- `docs/REPRODUCIBILITY.md` — environment, catalog prerequisite, evaluator
+  command, measured metrics, retention and provenance procedures.
+- `docs/PROVENANCE.json` — result-to-code binding manifest for every
+  retained run, with each artifact labeled official or diagnostic.
 - See CLAUDE.md → "Reference Document Hierarchy" for the precedence rule.
 
 # Current Architecture
@@ -839,6 +949,10 @@ deferred.
 
 # Current Task
 
+> **Superseded 2026-08-31.** The milestone is now M7 — Submission /
+> Deliverables; see the top of this file. The text below is retained as the
+> record of the position at the end of E011.
+
 E011 — Candidate Pool Expansion under a Proximity Reranker is complete and
 KEPT (see "E011 Outcome" above and EXPERIMENTS.md for the full record). It is
 the current best system, TechnicalScore 0.796939. `starter/agent.py` carries
@@ -887,6 +1001,10 @@ current best system, which is **E011** (see "Current Best System"/"Current Best
 Metrics" above); E006 has not been the current best since E010.
 
 # Next Milestone
+
+> **Superseded 2026-08-31.** M7 — Submission is no longer deferred; it is the
+> current milestone. See the top of this file. The text below is retained as
+> the chronological record.
 
 **Current position (read this first; the rest of this section is a
 chronological record and its older present-tense statements are superseded):
