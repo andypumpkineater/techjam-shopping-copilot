@@ -16,8 +16,9 @@ Lifted (2026-08-31)" below. That experiment, E007 — Candidate Pool
 Expansion before Coverage Reranking, has since been implemented, evaluated
 once, and REVERTED by human decision (see "E007 Outcome" below and
 EXPERIMENTS.md for the full record); current best algorithm remains E006 +
-M6 memoization, and `starter/agent.py` has not yet been restored to that
-code (pending; the E007 code is still present awaiting revert).
+M6 memoization, and `starter/agent.py` has been restored to that code —
+the failed E007 change was discarded and E007's failure documentation
+committed; the working tree was clean before E008 preregistration began.
 
 # Human Decision — Freeze Lifted (2026-08-31)
 
@@ -48,12 +49,11 @@ was actually evaluated; a REVERT decision has since been recorded (see
 "E007 Outcome" immediately below). M6 robustness/performance findings
 remain valid and are not reverted.
 
-M7 — Submission remains deferred: E007 is finished (REVERT recorded), but
-`starter/agent.py` has not yet been restored to the pre-E007 (E006 + M6)
-code — that restoration is a separate, not-yet-authorized step. Further
-post-v1.1 experiments still require explicit human approval; algorithm
-development is not to be marked frozen again unless the human makes that
-decision.
+M7 — Submission remains deferred: E007 is finished (REVERT recorded), and
+`starter/agent.py` has been restored to the pre-E007 (E006 + M6) code.
+Further post-v1.1 experiments still require explicit human approval;
+algorithm development is not to be marked frozen again unless the human
+makes that decision.
 
 Discipline for this extension:
 - E007 is preregistered before evaluation (see EXPERIMENTS.md);
@@ -100,8 +100,36 @@ itself is first improved. No alternate pool size was tested, and none
 should be without a new, separately-authorized preregistration.
 
 Therefore current production/best code target remains E006 + M6
-memoization (restoration of `starter/agent.py` to that state is pending, a
-separate not-yet-authorized step — see note above).
+memoization, and `starter/agent.py` has been restored to that state — the
+failed E007 change was discarded and this outcome documentation committed.
+
+## E008 — Preregistered (2026-08-31)
+
+New HUMAN decision on 2026-08-31: one further post-v1.1 experiment is
+authorized, E008 — Candidate-Local IDF-aware Reranking. Status:
+PREREGISTERED / NOT YET IMPLEMENTED. Full preregistration:
+EXPERIMENTS.md "E008 — Candidate-Local IDF-aware Reranking (PREREGISTERED)".
+
+This is a human-approved post-Architecture-v1.1 experiment extension, like
+E007 before it; Architecture v1.1 (`docs/M2_SYSTEM_DESIGN.md`) remains
+historical and unchanged, and still originally ends at E006. This does not
+rewrite E007 history: E007 remains REVERTED.
+
+Reason: E007 showed that the current binary/unweighted E004 coverage
+reranker cannot safely exploit a noisier, deeper Top20 candidate pool. The
+narrower next hypothesis is that, with the ORIGINAL E006 candidate
+membership held exactly frozen, ranking ties can be improved by preferring
+evidence matches that are rarer / more discriminative among the current
+candidate set, using a candidate-local IDF over the exact E006 candidate
+ids only (no global catalog IDF index). E008 does NOT retry candidate-pool
+expansion and does NOT reintroduce E007's `POOL_MULTIPLIER`.
+
+Current best remains E006 + M6 memoization (metrics above) until E008 is
+implemented, evaluated exactly once against the official evaluator, and an
+explicit KEEP or REVERT decision is recorded. Discipline: preregistered
+before implementation; one official evaluator run; if E008 does not KEEP,
+revert to E006 + M6; further post-v1.1 experiments beyond E008 still
+require explicit human approval.
 
 # Environment
 - macOS
@@ -310,8 +338,9 @@ freeze has since been explicitly lifted on 2026-08-31 for one preregistered
 post-v1.1 experiment (E007 — Candidate Pool Expansion) — see "Human
 Decision — Freeze Lifted (2026-08-31)" above. E007 has been evaluated and
 REVERTED (see "E007 Outcome" above); current best algorithm remains E006.
-M7 — Submission remains deferred pending restoration of `starter/agent.py`
-to the pre-E007 code, a separate not-yet-authorized step.
+`starter/agent.py` has been restored to the pre-E007 (E006 + M6) code.
+M7 — Submission remains deferred; see "E008 — Preregistered (2026-08-31)"
+above for the current not-yet-authorized-for-M7 reason.
 
 # Known Baseline Weaknesses
 
@@ -411,9 +440,15 @@ further algorithm capability development was explicitly lifted by human
 decision on 2026-08-31 for one preregistered post-v1.1 experiment, E007 —
 Candidate Pool Expansion before Coverage Reranking (see "Human Decision —
 Freeze Lifted (2026-08-31)" above), which has now been evaluated and
-REVERTED (see "E007 Outcome" above). M7 proceeds once `starter/agent.py`
-is restored to the pre-E007 (E006 + M6) code — a separate, not-yet-
-authorized step — or the human directs otherwise.
+REVERTED (see "E007 Outcome" above); `starter/agent.py` has been restored
+to the pre-E007 (E006 + M6) code.
+
+A second post-v1.1 experiment, E008 — Candidate-Local IDF-aware Reranking,
+was preregistered by human decision on 2026-08-31 (see "E008 —
+Preregistered (2026-08-31)" above and EXPERIMENTS.md for the full record).
+Status: PREREGISTERED / NOT YET IMPLEMENTED. `starter/agent.py` has not
+been modified for E008. M7 remains deferred pending E008's implementation,
+evaluation, and KEEP/REVERT decision, or the human directing otherwise.
 
 # Open Questions
 

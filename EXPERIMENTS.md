@@ -1207,3 +1207,135 @@ Discipline followed: preregistered before evaluation; evaluator run exactly
 once; no repeated public-set tuning of pool size; no alternate pool sizes
 tested (15/30/40/50 etc.); reverted per the pre-registered fallback rule.
 Further post-v1.1 experiments still require explicit human approval.
+
+## E008 — Candidate-Local IDF-aware Reranking (PREREGISTERED)
+
+Status: PREREGISTERED / NOT YET IMPLEMENTED
+
+Classification: human-approved post-Architecture-v1.1 experiment (see
+PROJECT_STATE.md "Human Decision — Freeze Lifted (2026-08-31)"). This does
+not reopen or rewrite E007 history: E007 remains REVERTED, and E008 does
+NOT retry candidate-pool expansion.
+
+Baseline: E006 — Adaptive Catalog-Side Clarification, plus the accepted M6
+`_product_terms()` memoization. Current best remains E006 + M6 memoization
+until E008 is evaluated and an explicit KEEP decision is recorded.
+
+Hypothesis: E007 showed that the current binary/unweighted E004 coverage
+reranker cannot safely exploit a noisier, deeper Top20 lexical pool. The
+narrower hypothesis tested here is that, with the ORIGINAL E006 candidate
+membership held exactly frozen, ranking ties within that same candidate set
+can be improved by preferring evidence matches that are rarer / more
+discriminative among the current candidates, rather than by changing which
+candidates are considered.
+
+Candidate-set invariant (strict): E008 changes ranking order ONLY. Candidate
+membership must remain EXACTLY the ids `_coverage_rerank()` receives under
+E006 — no deeper pool, no extra candidate, no removed candidate. The final
+recommendation set must therefore be identical to E006 for the same turn;
+only the order among that fixed set may differ.
+
+Frozen (unchanged): E001 retrieval (lexical retrieval, BM25, scoped/global
+routing, 7/3 slots, relaxation, candidate depth, tokenizer, STOPWORDS,
+FTS/index); E003 evidence admission/accumulation/40-term cap; E004's
+definition of one evidence unit and its existing binary coverage count
+(retained as the PRIMARY ranking signal); E004/E006 candidate membership;
+E006 adaptive clarification vocabularies/attribute scoring/asked-attribute
+state/fallback; M6 `_product_terms()` memoization. E007 remains REVERTED;
+its `POOL_MULTIPLIER` and expanded candidate depth are NOT reintroduced. No
+field weighting, title boosting, dense retrieval, embeddings, LLM
+reranking, semantic parsing, override handling, personalization, router, or
+new clarification logic is added.
+
+Preregistered IDF policy (Python stdlib only, candidate-local, one fixed
+formula, not tuned after evaluation):
+
+For the current E006 candidate ids only (no global 50k-product IDF index,
+no `_build_index()` change, no FTS vocab table):
+
+```
+N = number of current candidates
+df(t) = number of current candidates whose _product_terms(candidate)
+        contains term t
+idf(t) = ln((N + 1) / (df(t) + 1)) + 1
+```
+
+Preregistered rarity score (per-evidence-unit, not per-term, to avoid
+rewarding a verbose product for matching many words from one message):
+
+For each evidence unit U (same E004 units) and candidate product P, with
+`overlap(U, P) = U ∩ product_terms(P)`:
+
+```
+per-unit rarity contribution =
+    0                              if overlap(U, P) is empty
+    max(idf(t) for t in overlap)   otherwise
+
+rarity_score(P) = sum of per-unit rarity contributions across all
+                  evidence units
+```
+
+`coverage(P)` (E004's existing binary count of evidence units with
+non-empty overlap) is unchanged and remains the PRIMARY ranking signal.
+
+Preregistered sort key (strictly lexicographic, coverage dominant):
+
+```
+1. coverage(P) descending
+2. rarity_score(P) descending
+3. original E006 lexical/rerank input order, stable
+```
+
+A candidate with coverage 3 must always outrank a candidate with coverage
+2 regardless of rarity; IDF/rarity resolves ordering only among candidates
+tied on coverage. No third ranking signal and no weighted combination of
+coverage and rarity are added.
+
+Expected invariants (candidate membership is frozen, so these should hold
+exactly unless isolation is broken): HitRate@10 identical to E006; MTTC
+identical to E006 (first-hit membership per turn is unchanged); Efficiency
+identical to E006 (derived from MTTC); `ask_attribute` trajectory identical
+to E006 (`_select_attribute()` scores the final candidate SET, not rank
+order, per turn). If any of these four channels changes, treat it as a
+correctness/isolation warning first — do not rationalize it as an intended
+E008 effect. The primary expected mechanism channel is MRR (via reordering
+within tied-coverage groups), which can move TechnicalScore only through
+its 0.30 * MRR term.
+
+Performance: reuse `_product_terms()` once per candidate per rerank call
+(shared across coverage, candidate-local df, and rarity computation); do
+not call `_product_terms()` repeatedly per evidence term; do not add any
+new persistent cache beyond the existing M6 cache. No separate performance
+experiment is bundled into E008.
+
+Evaluation rule (preregistered before evaluation, one official run only):
+
+```
+python -m evaluator.local_evaluator
+```
+
+E006 + M6 baseline to compare against:
+
+HitRate@10:       0.835
+MRR:              0.522579
+MTTC:             4.515
+Efficiency:       0.6485
+TechnicalScore:   0.703974
+
+buying:           HR@10 0.8625 / MRR 0.502108 / MTTC 3.900
+browsing:         HR@10 0.825  / MRR 0.479415 / MTTC 4.675
+intent_override:  HR@10 0.8    / MRR 0.658135 / MTTC 5.333333
+boundary:         HR@10 0.8    / MRR 0.625     / MTTC 5.700
+
+Primary E008 mechanism metric: MRR. Final KEEP/REVERT decision is made on
+overall TechnicalScore. No IDF formula tuning after seeing results — no
+alternate global IDF, different smoothing, weighted coverage/rarity
+combination, or field weighting is to be tried inside this experiment.
+
+Discipline: preregistered before implementation or evaluation; exactly one
+official evaluator run planned; if E008 does not KEEP, revert to E006 + M6
+unchanged; further post-v1.1 experiments beyond E008 still require explicit
+human approval.
+
+Next: implement per this preregistration, run the one official evaluator
+pass, and record the KEEP/REVERT outcome here.
