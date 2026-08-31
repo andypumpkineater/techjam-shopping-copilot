@@ -2039,3 +2039,279 @@ rewording than the bag-of-words rule it replaced, and nothing measured so far
 would reveal that. If D012 shows the gain survives paraphrase, the next
 candidate is a separately preregistered look at whether pool depth is now worth
 revisiting given a ranker that can exploit it.
+
+## D012 — Paraphrase Stress
+
+Status: **PREREGISTERED** (this section committed before any code was written)
+
+Type: **R / Diagnostic. NOT an Agent Experiment.**
+
+No runtime code is changed. `starter/agent.py`, `evaluator/`, the frozen catalog,
+and the public labels are untouched. Expected TechnicalScore impact is **exactly
+zero**, and **no official evaluator run is performed in this cycle** — there is
+no runtime change for it to measure.
+
+### Question
+
+E010 ranks candidates by the length of the longest contiguous evidence n-gram
+(n in [2, 4]) appearing in a candidate's own token stream. It replaced E004's
+bag-of-words coverage as the primary sort key and gained +0.130570 MRR /
++0.039171 TechnicalScore on the 200 public sessions.
+
+A rule keyed on contiguous n-grams is *a priori* more exposed to rewording than
+the bag-of-words rule it replaced. The public simulator quotes the target
+product's own `features` / `details` text **verbatim** into user messages
+(`evaluator/local_evaluator.py:154-185`, `:52-71`) — messages such as
+`"For that, what matters is: Rubber sole; Shaft measures approximately 8.37\" from arch."`
+are literal catalog strings. Exact-substring matching is unusually well served by
+that, and the public set cannot reveal how much of E010's gain depends on it.
+
+**The question is a difference, not a level.** "How much does E010 lose under
+paraphrase?" is not decision-relevant on its own, because the bag-of-words rule
+loses ground too. The decision-relevant quantity is whether E010's *advantage
+over the rule it replaced* survives:
+
+```
+A(r) = TechnicalScore(phrase_n4, r) - TechnicalScore(cov, r)
+```
+
+evaluated on the same replay, same pool, same evidence stream, at rewrite rate
+`r`. Note the identity
+
+```
+A(r) - A(0) = [TS_phrase(r) - TS_phrase(0)] - [TS_cov(r) - TS_cov(0)]
+```
+
+so `A` *is* the degradation differential; there is no second quantity to track.
+
+### Hypothesis
+
+None in the E-class sense — no performance hypothesis is under test and nothing
+can be improved by running this. D012 asks a falsification question about an
+already-KEPT experiment's stated open risk.
+
+### Authority limit (preregistered, binding)
+
+**No D012 verdict can revert E010.** Offline diagnostic evidence does not
+overturn official-evaluator runtime evidence; that boundary is stated in R009
+("Evidence classification — important") and in `tools/diagnostics/README.md`
+("What a diagnostic result is and is not"). The strongest consequence available
+to the worst possible D012 outcome is a **recommendation to draft a new,
+separately authorized preregistration** (for example a proximity/coverage blend,
+or a backoff to shorter n on sparse evidence). Conversely, a clean D012 result
+does **not** establish private-set generalization; it retires one named risk and
+nothing more.
+
+### Design constraints (from the authorization)
+
+1. `evaluator/` is not modified. The rewrite is applied **offline, in the D-*
+   replay, to the `user_message` the simulator has already produced**, immediately
+   before it is handed to `Agent.respond()`. The simulator's own state machine
+   (`disclosed`, `boundary_used`, `override`) consumes nothing downstream of the
+   rewrite and is untouched.
+2. `tools/diagnostics/_replay.py` is reused. It gains one *additive, optional,
+   default-`None`* `message_transform` hook; a fourth replay implementation is not
+   written. With the hook unset, every existing caller (D-1, D-2, D-3,
+   `invariant_check`) is byte-for-byte unaffected.
+3. Offline, deterministic, seeded, Python standard library only. No new
+   dependency, no network.
+4. The **closed** D-3 scorer registry supplies the arms. **No scorer is added and
+   `N_MAX` is not swept** — sweeping it here would be public-set hill-climbing,
+   which `d3_counterfactual_bench.py`'s discipline block forbids.
+5. Rewrite intensity is reported as a curve over rates 0.00 / 0.25 / 0.50 / 1.00.
+6. `_replay.py`'s known conservative bias (the replay stops when the *real* agent
+   hits) stands unmodified — see "Interaction with the conservative bias" below.
+
+### Arms (closed registry, unchanged)
+
+| arm | what it is | why it is here |
+|---|---|---|
+| `bm25` | pool order as-is | retrieval-side reference: isolates how much degradation comes from the *query* changing rather than from either ranking rule |
+| `cov` | E004 binary per-unit coverage | **the control** — the bag-of-words rule E010 demoted |
+| `phrase_n4` | longest contiguous n-gram, n ≤ 4 | **E010's rule**, verified bit-identical to `Agent._proximity_score()` over 720 pairs during E010 |
+
+The `[observed]` row is the live E010 agent under the same paraphrased stream. It
+is reported as context only: it **cannot** answer the differential question,
+because there is no live `cov` agent to compare it against, and building one
+would be a runtime change that D012 forbids.
+
+### Pool depth
+
+Headline **pool 10**. This is E010's actual operating regime: `_coverage_rerank()`
+receives exactly the ids that are returned, so a reordering can only move the
+target *within* the returned ten, HitRate@10 / MTTC / Efficiency cannot move, and
+`TS delta = 0.30 x MRR delta`. Secondary **pool 100** on the mixed ensemble only,
+as a depth-sensitivity check. Both depths are produced from a single replay per
+configuration (depth 100 is fetched once and sliced).
+
+### The rewriter — frozen specification
+
+The rewriter is the only component of D012 that could fabricate its own
+conclusion. It is therefore specified in full here, in the commit that precedes
+the code, and **may not be retuned after any result is seen**.
+
+It receives `(message, sample_id, turn, seed, families)` and **nothing else** —
+no sample, no product, no target, no catalog handle. `sample_id` and `turn` are
+used solely as hash salt.
+
+**Eligibility.** A message is rewritten only if `not _is_information_free(message)`.
+Rationale: the three information-free templates are dropped from evidence by E003
+at every turn after the first; perturbing their prefixes would silently flip
+`_is_information_free()` and promote boilerplate into evidence, confounding D012
+with an E003 regression that has nothing to do with word order. Turn-1 messages
+are always eligible (`initial_message()` never emits an information-free
+template). The eligible set is exactly the evidence-bearing set.
+
+**Selection, nested across rates.** For each eligible message,
+
+```
+u = int.from_bytes(sha256(f"{seed}|{sample_id}|{turn}|select").digest()[:8], "big") / 2**64
+rewrite iff u < rate
+```
+
+so the messages rewritten at 0.25 are a **subset** of those at 0.50, a subset of
+those at 1.00. The degradation curve therefore varies coverage of one fixed
+message set, and is not confounded by a different sample of messages per level.
+
+**Per-message RNG.** `random.Random(sha256(f"{seed}|{sample_id}|{turn}|apply").hexdigest())`,
+re-seeded per message; families are applied in the fixed order below, so every
+draw is deterministic.
+
+**Word model.** `words = message.split()`; `alnum(w) = re.sub(r"[^A-Za-z0-9]", "", w)`;
+`w` is a *content word* iff `_terms(w)` is non-empty. Clauses are the message
+split on `(?<=[.;:,])\s+`, delimiters staying with the left clause.
+
+**Families** (fixed order when composed):
+
+1. `reorder` — if there are >= 2 clauses, rotate the clause sequence left by
+   `1 + rng.randrange(n_clauses - 1)`. Within-clause word order is preserved.
+2. `shuffle` — for each clause of `L >= 4` words, apply `ceil(L/4)` adjacent
+   transpositions at distinct positions drawn by `rng.sample(range(L-1), k)`.
+3. `morph` — plural toggle. Over content words whose `alnum` is purely alphabetic
+   with length >= 4, pick `ceil(n/3)` by `rng.sample` and toggle: drop a trailing
+   `s` when `alnum` ends in `s`, not in `ss`/`us`/`is`, and has length >= 5;
+   otherwise append `s` unless it ends in `s`/`x`/`z`/`h`. Surrounding punctuation
+   is preserved.
+4. `drop` — delete `C // 8` content words (0 when `C < 8`), positions by
+   `rng.sample`. Deliberately the mildest setting of the most destructive family.
+5. `filler` — for each clause of >= 6 words, insert one word drawn by the RNG from
+   the frozen list `("really", "kind", "sort", "general", "overall", "honestly")`
+   at an RNG-chosen position. All six survive `_terms()` (length > 1, not in
+   `STOPWORDS`).
+6. `punct` — **placebo, never part of the mixed ensemble.** Replace each single
+   space with two spaces and insert a space before each of `.,;:!?`. Provably
+   token-neutral under `_terms()`: `[a-z0-9]+` runs are never split by inserting
+   whitespace before a non-alphanumeric character, and never merged by adding
+   whitespace.
+
+**Mixed ensemble `mix`** = `reorder -> shuffle -> morph -> drop -> filler`, all five
+applied to each selected message. "Rate" therefore means "fraction of
+evidence-bearing user messages that are fully paraphrased".
+
+**Vocabulary-closure invariant (asserted in the smoke test).** For every rewritten
+message,
+
+```
+set(_terms(out)) subset-of  set(_terms(in)) union FILLER union {t+"s", t[:-1] : t in _terms(in)}
+```
+
+The rewriter can introduce no information that was not already in the user's own
+message, plus six fixed English hedge words. This is the structural guarantee that
+no `ground_truth`, catalog text, or target-derived string can enter through it.
+
+### A priori bias of each family — stated before the run
+
+| family | vocabulary-free | effect on `cov` | effect on `phrase_n4` | favors |
+|---|---|---|---|---|
+| `reorder` | yes | **exactly none** (per-unit token set invariant) | only grams straddling a clause boundary | `cov`, slightly |
+| `shuffle` | yes | **exactly none** (a permutation preserves the token set) | strong | **`cov`, by construction** |
+| `morph` | yes (rule-based) | weak (see saturation note) | strong — any gram containing the token dies | `cov`, structurally |
+| `drop` | yes | weak (see saturation note) | strong | `cov`, structurally |
+| `filler` | 6 frozen hedge words | ~none (a unit can only gain a token) | moderate — breaks grams spanning the insertion | `cov` |
+| `punct` | yes | **exactly zero** | **exactly zero** | placebo |
+
+Three admissions, recorded now so that neither can be mistaken for a post-hoc
+excuse:
+
+- **D012 is biased against E010 by design.** Every content family is structurally
+  more damaging to `phrase_n4` than to `cov`, and two of them are `cov`-neutral by
+  construction. "`phrase_n4` degrades more than `cov`" is therefore the *expected*
+  outcome and is **not**, on its own, evidence of a problem. This is exactly why
+  the decision criterion below is stated on the surviving advantage `A(1.0)` and
+  not on raw degradation.
+- **`cov`'s robustness is saturation, not bag-of-words virtue.** `cov` credits a
+  unit if the candidate shares *one* token with it. Most candidates in a BM25 pool
+  share at least one token with most units, so `cov` has very little dynamic range
+  to lose under any perturbation. Its flat curve should be read as low resolution,
+  not as strength.
+- **This is mechanical perturbation, not semantic paraphrase.** No offline
+  paraphraser is available under the no-network / no-new-dependency constraints, so
+  lexical-semantic substitution ("waterproof" -> "water resistant") is out of scope.
+  D012 bounds robustness to *surface* rewording (order, morphology, omission,
+  hedging) only. Robustness to synonym substitution remains open and a private set
+  could still expose it. A clean verdict must not be over-read past this line.
+
+### Interaction with the conservative bias
+
+`_replay.py` stops a session when the **real** agent hits, and is not modified.
+Under paraphrase the real (E010) agent hits later or not at all, so *more* turns
+are played and the counterfactual arms receive *more* evidence at high rewrite
+rates than at rate 0. This inflates both counterfactual arms as `r` grows. It
+applies to `cov` and `phrase_n4` identically, so `A(r)` is unaffected to first
+order; absolute per-arm degradation figures are the ones it distorts, and they are
+reported with that caveat rather than corrected.
+
+### Run plan (12 replays, one process, one `Agent` instance)
+
+The two agent caches (`_product_terms_cache`, `_product_stream_cache`) are pure
+memoizations of catalog-static functions, so sharing one `Agent` across
+configurations is bit-identical to separate processes and avoids 12 index builds.
+
+- mixed ensemble, seed `20260831`, rates 0.00 / 0.25 / 0.50 / 1.00 — 4 replays
+- each family alone at rate 1.00, seed `20260831`: `reorder`, `shuffle`, `morph`,
+  `drop`, `filler`, `punct` — 6 replays
+- mixed ensemble at rate 1.00, seeds `11` and `12` — 2 replays
+
+### Validity gates — D012 is VOID unless all four pass
+
+- **G1** rate 0.00 reproduces the D-3 rows for `[observed]`, `bm25`, `cov`,
+  `phrase_n4` to six decimals, at both pool depths. (Proves the hook is a no-op
+  when unused and that D012 sits on the same replay as R009.)
+- **G2** the `punct` placebo at rate 1.00 is identical to rate 0.00 in every arm at
+  both depths. (Proves the harness itself contributes no variance.)
+- **G3** at rate 1.00 mixed, at least **80 %** of eligible messages differ from
+  their original. (Proves the stress is real; a null result from an inert rewriter
+  is worthless.)
+- **G4** the vocabulary-closure invariant holds for 100 % of rewritten messages.
+  (Proves no external information enters.)
+
+### Decision rule (frozen before any result is seen)
+
+On the mixed ensemble at pool 10, with `A(r)` as defined above:
+
+| verdict | condition |
+|---|---|
+| **NOT SPECIALLY FRAGILE** | `A(1.0) > 0` **and** `A(1.0) >= 0.50 * A(0.0)` |
+| **PARTIAL EROSION** | `0 < A(1.0) < 0.50 * A(0.0)` |
+| **SPECIALLY FRAGILE** | `A(1.0) <= 0` |
+| **INCONCLUSIVE** | the spread of `A(1.0)` over the three seeds is >= the distance from `A(1.0)` to the nearest verdict boundary |
+
+Read plainly: E010 is *specially* fragile only if enough surface rewording makes
+the bag-of-words rule it replaced catch or beat it. If both rules degrade by
+comparable amounts and proximity stays ahead, the "contiguous n-grams are brittle"
+risk is not established, whatever the absolute drop turns out to be.
+
+No family may be added, removed, or reparameterized after the first full run. If a
+family produces an uninteresting curve, that is a reported result.
+
+### Files to be added
+
+- `tools/diagnostics/_paraphrase.py` — the frozen rewriter
+- `tools/diagnostics/d012_paraphrase_stress.py` — the driver
+- one additive optional `message_transform` parameter on `_replay.py::replay()`
+- `docs/diagnostics/D012_PARAPHRASE_STRESS.md` / `.json` — the named result
+  snapshot (repo-root `results*.json` is gitignored scratch and is not used)
+
+### Results
+
+*(to be filled in after the run; nothing above this line may change)*
