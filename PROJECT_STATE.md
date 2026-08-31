@@ -16,7 +16,12 @@ true when written and is superseded by this one.
   to `docs/diagnostics/E011_SESSIONS.json`, wall clock 283.32 s.
 - E005, E007, E008 remain REVERTED. D012 remains CANCELLED with no result.
 
-## Algorithm freeze for submission preparation
+## Algorithm freeze for submission preparation (historical — lifted 2026-09-01)
+
+**This freeze was lifted by human decision on 2026-09-01.** See "Algorithm
+freeze lifted (2026-09-01)" under "M7 progress" below. This section is
+retained unedited as the record of what was in force from 2026-08-31 to
+2026-09-01.
 
 **Algorithm capability development is frozen for the duration of submission
 preparation** (human decision, 2026-08-31). No change to candidate generation,
@@ -36,9 +41,9 @@ agent source stays byte-identical to the evaluated one. Two stale comments (a
 therefore remain in the file and are noted in the final report's limitations
 rather than corrected in place.
 
-Whether algorithm capability development reopens after submission preparation is
-**not decided**. It would require a separate explicit human authorization and its
-own preregistration, exactly as before.
+Whether algorithm capability development reopens after submission preparation was
+**not decided** at the time this section was written. It has since been decided:
+see "Algorithm freeze lifted (2026-09-01)" below.
 
 ## Submission source provenance
 
@@ -76,17 +81,30 @@ Completed in submission preparation so far:
   with each artifact labeled official or diagnostic;
 - a narrowed `.gitignore` rule (`results*.json` -> `/results*.json`), so that a
   tracked artifact under `docs/` can no longer be swallowed by the root-scratch
-  ignore.
+  ignore;
+- `README.md` rewritten judge-facing (commit `6482e70`) — no longer the
+  organizer's starter README, no longer describes the weak BM25 baseline;
+- `docs/DEMO_SESSION.md` — the reproducible multi-turn demo session required by
+  `docs/final_evaluation_faq.md` section 7 (commit `c0039e6`);
+- `tests/test_agent.py` — contract and session-isolation coverage for Agent
+  (commit `52ba564`).
 
-Not yet done: README rewrite, final technical report, figures, the demonstrated
-multi-turn session required by `docs/final_evaluation_faq.md` section 7, agent
-test coverage, repository consistency audit, cold-start reproduction, and the
-final submission checklist.
+Not yet done: final technical report, figures, repository consistency audit,
+cold-start reproduction, and the final submission checklist.
 
-**A submission-ready checkpoint has NOT yet been established.** The repository is
-not yet in a state that could be submitted as-is: the README is still the
-organizer's starter README and describes the weak BM25 baseline rather than this
-system.
+**A submission-ready checkpoint has NOT yet been established.** The remaining
+items above are still open.
+
+## Algorithm freeze lifted (2026-09-01)
+
+**Human decision, 2026-09-01: the algorithm capability freeze declared above
+("Algorithm freeze for submission preparation") is lifted.** Submission
+preparation continues in parallel, but `starter/agent.py` may now be modified
+again under the same experiment discipline used for E007–E011 (preregister in
+EXPERIMENTS.md before any runtime change, run the official evaluator, record
+KEEP/REVERT). This does not rewrite the M7 freeze record above, which stands
+as the decision that was in force from 2026-08-31 to 2026-09-01. The next
+authorized experiment is E012 — see EXPERIMENTS.md.
 
 ## Open items requiring human input
 
