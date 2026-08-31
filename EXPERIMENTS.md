@@ -3813,3 +3813,183 @@ experiment:
 2. Present the `other` half as the product insight it is, with its
    `customer_reply()` dependence disclosed alongside, per the preregistration's
    narrative obligation.
+
+## E014 — Idle-turn slate rotation
+
+Status: **PREREGISTERED** (written and committed before any implementation)
+
+Type: E / Agent Experiment. Changes runtime behavior; decided by one official
+evaluator run.
+
+Classification: human-approved post-Architecture-v1.1 experiment, the seventh
+after E007, E008, E010, E011, E012 and E013. Authorized by the human decision of
+2026-09-01 recorded in PROJECT_STATE.md, which selected E014 out of the idle-turn
+audit (Artifact `bd92c442-ace7-4a07-becc-69707781788b`, §C "唯一推荐" and §D
+"E014 预注册草案") and closed every other arm in that audit. **Algorithm
+development freezes after E014.**
+
+Baseline: **E013 — Resolution/Clarification Coupling**, on top of E012 + E011 +
+E010 + E006 + M6 + E004 + E003 + E002 + E001. TechnicalScore 0.839920
+(HR@10 0.960, MRR 0.641067, MTTC 2.620, Efficiency 0.838). Per-session snapshot:
+`docs/diagnostics/E013_SESSIONS.json`.
+
+The sections below are the audit's §D preregistration draft, adopted verbatim in
+substance.
+
+### §1 Hypothesis
+
+When the accumulated evidence is unchanged between two turns, the reranked
+Top-10 is bit-for-bit identical to the previous turn's, and the previous turn was
+already judged by the evaluator not to contain the target. Repeating it therefore
+has a hit probability of exactly 0. Returning instead the next unshown window of
+the *same already-computed ranked pool* **can only** raise HitRate@10 and **can
+only** lower MTTC; MRR may fall slightly, via "earlier but deeper" hits. The net
+effect is positive.
+
+### §2 Minimal change scope
+
+`starter/agent.py` only, roughly 15 lines:
+
+- `reset()` gains two session-state entries: `_slate_offset[sid] = 0` and
+  `_evidence_len[sid] = 0`.
+- `respond()` keeps the **full** return value of `_coverage_rerank()` as
+  `ranked`; `head = ranked[:top_k]`.
+- If `turn > 1` and `len(self._sessions[sid])` equals the previous turn's value,
+  then `offset = min(offset + top_k, max(0, len(ranked) - top_k))`; otherwise
+  `offset = 0`.
+- Return `ranked[offset:offset + top_k]`.
+- **Critical: `_select_attribute()` continues to receive `head` (the pre-rotation
+  top-k), not the rotated window.** That is the sole condition preserving
+  "dialogue stream identical turn-for-turn ⇒ the offline prediction is exact",
+  and it must be written into the code as a comment.
+
+**Frozen (unchanged):** `POOL_DEPTH = 100` and the 70/30 primary/insurance
+composition; BM25 field weights and expression; `TOKEN_RE`, `STOPWORDS`,
+`_terms()` and the 40-term cap; `N_MAX = 4` and the proximity formula; the sort
+key `(proximity, coverage, incoming order)`; `_CLAUSE_SPLIT_RE`; E003 evidence
+admission; the E006 adaptive selector and the E013 `other`x2 schedule; override
+and boundary handling. No embeddings, no LLM, no new dependency, no network.
+
+### §3 Expected channels
+
+| Metric | E013 | Offline prediction | Delta | Directional guarantee |
+|---|---:|---:|---:|---|
+| HitRate@10 | 0.960 | 0.990 | +0.030 | provably non-decreasing |
+| MRR | 0.641067 | 0.649123 | +0.008056 | **no guarantee — the only risk channel** |
+| MTTC | 2.620 | 2.400 | -0.220 | provably non-increasing |
+| Efficiency | 0.838 | 0.860 | +0.022 | follows MTTC |
+| **TechnicalScore** | 0.839920 | **0.861737** | **+0.021817** | — |
+
+Predicted per-bucket HitRate@10 (audit §C property 2): browsing 0.975 -> 1.000,
+buying 0.950 -> 0.9875, intent_override 0.933333 -> 0.966667, boundary 1.0 flat.
+Predicted bucket-level MRR cost: boundary 0.700952 -> 0.634286 (1 session of 10).
+
+For this experiment the offline prediction is an **exact** prediction rather than
+an approximate one (audit §C property 1), because the agent's output has no path
+back into the simulator's input — `_select_attribute()` still sees the
+pre-rotation head, and the simulator reads only `ask_attribute`. That is exactly
+the channel that produced E013's +0.0007 divergence, and it is closed here. The
+official run is still mandatory and is still run exactly once.
+
+**Warning signal:** if HR@10 does not rise, rotation is not firing at all — check
+that the offset really increments when evidence is unchanged, and that the
+**full** `_coverage_rerank()` return value, not an already-truncated list, is
+what the rotation logic receives.
+
+### §4 Largest failure modes
+
+- **"Earlier but deeper" hits eat MRR.** Only 1 of 200 public sessions triggers
+  it (`public_0131`, -0.0009 TS), but if the private set carries a higher
+  boundary share the cost scales with it. boundary is 5% of the public set.
+- **If private-set sessions never idle, the gain is zero.** If private intent
+  cards carry more constraints and disclosure keeps going, rotation never fires
+  — in which case this experiment's benefit is 0, but so is its cost.
+- **There is no hit->miss channel.** Proven by audit §C property 2 and confirmed
+  by measurement (0/200).
+
+### §5 Offline verification methods (no official evaluator needed)
+
+1. **Invariant assertion.** Use `invariant_check dump/compare` to confirm that on
+   every turn where rotation does *not* fire, the returned list is bit-for-bit
+   identical to E013's.
+2. **Question-sequence diff.** Confirm the `ask_attribute` sequence over all 200
+   sessions is identical to E013's. A mismatch means `_select_attribute()`
+   wrongly received the rotated window and property 1 is broken.
+3. **Rewrite perturbation.** Using `_replay.py`'s `message_transform` hook, run
+   D012's `shuffle` / `filler` families (bag-of-words-neutral by construction)
+   and confirm the set of turns where rotation fires is unchanged. **This tests
+   trigger robustness only and cites no D012 score** — D012 remains CANCELLED and
+   none of its numbers may be quoted.
+4. **Card-size stress test.** FAQ §7 explicitly permits modifying a local copy of
+   the evaluator for local experiments. In a copy, set each intent card's
+   constraint count to 6 or 8 and confirm rotation still fires after clarification
+   is exhausted and still produces no hit->miss. This directly tests the main
+   generalization assumption ("private cards are larger").
+
+These are available offline checks, not gates on the decision rule in §6.
+
+### §6 KEEP / REVERT decision rule (preregistered)
+
+**KEEP** if and only if **all three** hold:
+
+- (a) TechnicalScore gain **>= 0.010** over 0.839920 (i.e. TS >= 0.849920);
+- (b) **overall MRR >= 0.641067** (not below the E013 value);
+- (c) **no** scenario bucket's HitRate@10 falls.
+
+Condition (b) **replaces** the project's habitual "no hit->miss cluster" clause.
+That clause is *provably identically zero* under this change, so writing it into
+the rule would be writing nothing; **MRR is the only real risk channel** and the
+rule must point at it. Condition (c) is likewise near-automatic, and is kept so
+that a falsified hypothesis is detected immediately rather than absorbed.
+
+**REVERT** otherwise. On REVERT, restore E013 in full. It may **not** be turned
+into "rotate only after two consecutive idle turns", the window step may not be
+changed, and it may not be enabled for only some scenario buckets — any such
+variant requires new, separate authorization and its own preregistration.
+
+### §7 Bundling — not required
+
+Unlike E013, this change is **positive on its own** (+0.0218) and depends on no
+interaction term. G2 (G + always ask `other`) measured 0.861837, only **+0.0001**
+above G — far below noise. Bundling would introduce a second hypothesis and extra
+coupling for nothing. **One hypothesis, one official run.**
+
+### §8 Explicitly out of scope
+
+Pool depth beyond 100; the 70/30 composition; `N_MAX`; any tie-break sort key;
+`_CLAUSE_SPLIT_RE`; the `other` turn count; turn-1 output width (audit arms A/B,
+offline +0.0149, sealed by human decision); any semantic / embedding / LLM signal
+(the human's 2026-09-01 "no model/API" decision stands); re-running D012. **If
+E014 underperforms, none of the above may be added as a remedy.**
+
+### Overfitting risk — **lowest**, below E012
+
+Zero new hyperparameters (the window step *is* `top_k`), zero wording
+dependencies, two provably monotone channels, dialogue stream identical
+turn-for-turn. The change uses only three properties of the task and protocol:
+the protocol grants 10 turns; repeating an already-judged page cannot produce a
+new hit; clarification eventually saturates.
+
+The one honest caveat, recorded in advance: **the gain is dominated by a few
+sessions** — most of the predicted +0.0218 comes from 6 miss->hit sessions (3%).
+The mechanism applies uniformly to every missing session and is provably harmless
+to the other 97%, which is materially different from scoring off an incidental
+ranking coincidence in a handful of sessions, but it is a concentration and it is
+stated here rather than after the fact.
+
+### Procedure (preregistered, in order)
+
+1. This preregistration is committed **before** implementation.
+2. Implement exactly the §2 change; confirm via `git diff` that there is no
+   second behavior change.
+3. Run the full test suite.
+4. Exactly **one** official evaluator run:
+   `python3 -m evaluator.local_evaluator --output results_e014.json`
+5. D-5 paired delta vs `docs/diagnostics/E013_SESSIONS.json`, with
+   `--show-sessions`; report the migration matrix **before** discussing
+   KEEP/REVERT.
+6. Report MRR and MTTC **separately**, then check the §6 conditions one by one.
+
+### Result
+
+_(to be filled in after the single official run)_
