@@ -1431,3 +1431,144 @@ Those mechanisms were not tested.
 
 Next: current best remains E006 + M6 memoization, unchanged. Further
 post-v1.1 experiments beyond E008 still require explicit human approval.
+
+## R009 — Diagnostic / Research Infrastructure
+
+Status: COMPLETE
+
+Type: **R / Diagnostic Infrastructure. NOT an Agent Experiment.**
+
+This is not an E-class experiment. It has no performance hypothesis, changes no
+runtime behavior, and its expected TechnicalScore impact is exactly zero. It does
+not supersede or reopen E007 or E008, both of which remain REVERTED.
+
+### Hypothesis
+
+None — no performance hypothesis is under test.
+
+The objective is to move already-verified offline diagnostic capability out of an
+ephemeral session scratchpad and into the repository, so that later experiments
+can perform candidate-recall, ranking-upper-bound, counterfactual, paired-delta,
+and invariant analysis from a reproducible, version-controlled base.
+
+Motivation: E007 and E008 each consumed a full official-evaluator experiment slot
+(preregistration, implementation, one official run, documentation) and returned a
+single scalar of roughly -0.03. The same questions are answerable offline in
+minutes. R009 buys that capability once.
+
+### Runtime change
+
+**None.**
+
+`starter/agent.py` is untouched. Verified by code inspection, not by document:
+
+- `git diff -- starter/agent.py` — empty
+- `git diff c8cc1e2 HEAD -- starter/agent.py` — empty (identical to the M6 commit)
+- SHA-256 `8615fd2164bf5dbfa46b2baf802b6a6ebeb70503aa692d0d2e1f77a145e3a67a`
+- no `idf` / `rarity` / `POOL_MULTIPLIER` / `math.log` symbols present
+- `_coverage_rerank()` sorts on `-coverage` alone, no secondary rarity key
+
+No retrieval, ranking, clarification, evidence, override, BM25 weighting,
+candidate-pool, slot-structure, tokenizer, or STOPWORDS change was made.
+
+### Files added
+
+- `tools/diagnostics/_replay.py` — shared offline session-replay core
+- `tools/diagnostics/d1_candidate_oracle.py` — D-1
+- `tools/diagnostics/d2_reranker_bounds.py` — D-2
+- `tools/diagnostics/d3_counterfactual_bench.py` — D-3
+- `tools/diagnostics/d5_paired_delta.py` — D-5
+- `tools/diagnostics/invariant_check.py` — experiment invariant checker
+- `tools/diagnostics/README.md` — usage and the ground-truth boundary
+- `docs/diagnostics/E006_M6_BASELINE.md` / `.json` — baseline snapshot
+
+### Ground truth boundary
+
+The diagnostics read `ground_truth` from `data/public_set.jsonl` and re-derive
+the evaluator's hidden intent cards. This is permitted only because it is offline
+error analysis. `ground_truth` and anything derived from it must never reach
+`starter/agent.py`, runtime query construction, runtime ranking, runtime
+clarification, runtime state, or any runtime mapping.
+
+Held in code: the Agent is driven only through `reset()` and `respond()`, with
+messages produced by the published simulator. The target id is used solely to
+locate the target in a result list after the agent has already answered. Two
+read-only couplings to agent internals (`_sessions`, `_product_terms`) plus a
+BM25-weight guard raise loudly rather than silently reporting different numbers
+if the runtime changes shape. Documented in `tools/diagnostics/README.md` and in
+the `_replay.py` module docstring.
+
+### D-3 discipline
+
+The D-3 scorer registry is deliberately CLOSED and contains only rules already
+run and reported in the 2026-08-31 audit. Passing an unregistered scorer name is
+an error, by design. D-3 must not be used to sweep parameters in bulk, to try
+many variants and keep the public-set maximum, or to hill-climb the 200 public
+sessions. A positive D-3 delta is grounds to preregister an experiment; it is
+never itself evidence of improvement.
+
+### Expected TechnicalScore impact
+
+**Exactly zero.**
+
+### Regression criterion and result
+
+R009 could not be declared complete unless the official evaluator reproduced the
+E006 + M6 baseline. Result: **PASS**, identical in every field.
+
+Command: `python3 -m evaluator.local_evaluator`
+
+HitRate@10 0.835 · MRR 0.522579 · MTTC 4.515 · Efficiency 0.6485 ·
+TechnicalScore 0.703974 · runtime 73.4 s
+
+buying HR 0.8625 / MRR 0.502108 / MTTC 3.900; browsing HR 0.825 / MRR 0.479415 /
+MTTC 4.675; intent_override HR 0.8 / MRR 0.658135 / MTTC 5.333333; boundary
+HR 0.8 / MRR 0.625 / MTTC 5.700.
+
+All 200 per-session outcomes (hit, first_hit_turn, best_rank) are bit-identical
+to the prior baseline run — 0 mismatches, confirmed with D-5.
+
+### Reproduction of the audit's conclusions from the repository tools
+
+D-1 and D-3 reproduce the 2026-08-31 audit **exactly**: Recall@10 0.805 /
+Recall@20 0.875 / Recall@50 0.935 / Recall@100 0.990 / Recall@200 0.995 /
+Recall@500 1.000; and every pool-100 bag-of-words scorer plus every pool-60
+phrase scorer matches to six decimal places.
+
+**One discrepancy was found, investigated, and explained — not silently
+accepted.** D-2's pool-depth bounds came out 0.005–0.007 lower than the audit's
+table. Root cause: the audit's pool-depth oracle table was computed **without**
+the intent_override gate, while its other two tables were gated. R009 applies the
+gate consistently, matching `evaluator/local_evaluator.py:234, :252, :259`. Both
+values were reproduced from the same source data: the ungated path returns the
+audit's numbers exactly, the gated path returns R009's exactly. Query
+reconstruction, session simulation, candidate depth, and target-rank definition
+are identical; the gate is the sole difference. The R009 gated values supersede
+the audit's table. The qualitative conclusion is unaffected.
+
+### Evidence classification — important
+
+The snapshot records diagnostic evidence and runtime-experiment evidence
+separately and must not be read as conflating them.
+
+Diagnostic evidence establishes that every bag-of-words re-weighting tested
+(binary coverage, per-unit term recall, global catalog IDF, full-unit
+containment, two pairwise combinations) lands within roughly ±0.02 of the current
+system. That signal dimension appears substantially exhausted, consistent with
+both E007 and E008 failing while re-weighting it.
+
+Diagnostic evidence does **not** establish that proximity / phrase ranking
+improves the agent. **E010 remains a preregistered hypothesis that has NOT been
+run.** No official evaluator run exists for any proximity rule. The `phrase_*`
+figures are counterfactual measurements on a fixed dialogue trajectory; a real
+implementation would change the candidate set, hence `_select_attribute`, hence
+what the simulator discloses, hence every later turn. Only an E-class official
+run can support a KEEP.
+
+### Decision
+
+KEEP (infrastructure). No runtime behavior was changed, so there is nothing to
+revert.
+
+Next: E010 — Proximity-aware Reranking, in a fresh window from this clean
+checkpoint. R009 deliberately stopped short of implementing it.

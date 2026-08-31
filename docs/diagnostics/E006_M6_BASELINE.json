@@ -1,0 +1,268 @@
+{
+  "snapshot_id": "E006_M6_BASELINE",
+  "captured": "2026-08-31",
+  "runtime_agent": "E006 (adaptive catalog-side clarification) + M6 (_product_terms memoization)",
+  "agent_commit": "c8cc1e2",
+  "agent_sha256": "8615fd2164bf5dbfa46b2baf802b6a6ebeb70503aa692d0d2e1f77a145e3a67a",
+  "notes": "Captured during R009. No runtime change. All diagnostics are override-gated.",
+  "official_evaluator": {
+    "command": "python3 -m evaluator.local_evaluator",
+    "overall": {
+      "sample_count": 200,
+      "hit_rate_at_10": 0.835,
+      "mrr": 0.522579,
+      "mttc": 4.515,
+      "efficiency": 0.6485,
+      "recommended_technical_score": 0.703974
+    },
+    "scenario_metrics": {
+      "boundary": {
+        "sample_count": 10,
+        "hit_rate_at_10": 0.8,
+        "mrr": 0.625,
+        "mttc": 5.7
+      },
+      "browsing": {
+        "sample_count": 80,
+        "hit_rate_at_10": 0.825,
+        "mrr": 0.479415,
+        "mttc": 4.675
+      },
+      "buying": {
+        "sample_count": 80,
+        "hit_rate_at_10": 0.8625,
+        "mrr": 0.502108,
+        "mttc": 3.9
+      },
+      "intent_override": {
+        "sample_count": 30,
+        "hit_rate_at_10": 0.8,
+        "mrr": 0.658135,
+        "mttc": 5.333333
+      }
+    },
+    "reported_token_usage": {
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "total_tokens": 0
+    }
+  },
+  "d1_candidate_oracle": {
+    "command": "python3 -m tools.diagnostics.d1_candidate_oracle",
+    "probe_depth": 1000,
+    "recall_at": {
+      "10": 0.805,
+      "20": 0.875,
+      "50": 0.935,
+      "100": 0.99,
+      "200": 0.995,
+      "500": 1.0
+    },
+    "agent_hits": 167
+  },
+  "d2_perfect_reranker_bounds": {
+    "command": "python3 -m tools.diagnostics.d2_reranker_bounds",
+    "observed_baseline": {
+      "sample_count": 200,
+      "hit_rate_at_10": 0.835,
+      "mrr": 0.522579,
+      "mttc": 4.515,
+      "efficiency": 0.6485,
+      "technical_score": 0.703974
+    },
+    "keep_membership_perfect_order": {
+      "sample_count": 200,
+      "hit_rate_at_10": 0.835,
+      "mrr": 0.835,
+      "mttc": 4.515,
+      "efficiency": 0.6485,
+      "technical_score": 0.7977
+    },
+    "by_pool_depth": {
+      "10": {
+        "sample_count": 200,
+        "hit_rate_at_10": 0.805,
+        "mrr": 0.805,
+        "mttc": 4.84,
+        "efficiency": 0.616,
+        "technical_score": 0.7672
+      },
+      "20": {
+        "sample_count": 200,
+        "hit_rate_at_10": 0.875,
+        "mrr": 0.875,
+        "mttc": 4.03,
+        "efficiency": 0.697,
+        "technical_score": 0.8394
+      },
+      "30": {
+        "sample_count": 200,
+        "hit_rate_at_10": 0.915,
+        "mrr": 0.915,
+        "mttc": 3.515,
+        "efficiency": 0.7485,
+        "technical_score": 0.8817
+      },
+      "50": {
+        "sample_count": 200,
+        "hit_rate_at_10": 0.935,
+        "mrr": 0.935,
+        "mttc": 3.24,
+        "efficiency": 0.776,
+        "technical_score": 0.9032
+      },
+      "100": {
+        "sample_count": 200,
+        "hit_rate_at_10": 0.99,
+        "mrr": 0.99,
+        "mttc": 2.555,
+        "efficiency": 0.8445,
+        "technical_score": 0.9609
+      },
+      "200": {
+        "sample_count": 200,
+        "hit_rate_at_10": 0.995,
+        "mrr": 0.995,
+        "mttc": 2.055,
+        "efficiency": 0.8945,
+        "technical_score": 0.9749
+      }
+    }
+  },
+  "d3_counterfactual_bench": {
+    "command_pool100": "python3 -m tools.diagnostics.d3_counterfactual_bench --pool 100",
+    "command_pool60": "python3 -m tools.diagnostics.d3_counterfactual_bench --pool 60 --scorers bm25,phrase_n2,phrase_n3,phrase_n4,phrase_n8",
+    "pool_100": {
+      "bm25": {
+        "sample_count": 200,
+        "hit_rate_at_10": 0.805,
+        "mrr": 0.521002,
+        "mttc": 4.84,
+        "efficiency": 0.616,
+        "technical_score": 0.682001
+      },
+      "cov": {
+        "sample_count": 200,
+        "hit_rate_at_10": 0.82,
+        "mrr": 0.519141,
+        "mttc": 4.745,
+        "efficiency": 0.6255,
+        "technical_score": 0.690842
+      },
+      "frac": {
+        "sample_count": 200,
+        "hit_rate_at_10": 0.84,
+        "mrr": 0.501833,
+        "mttc": 4.545,
+        "efficiency": 0.6455,
+        "technical_score": 0.69965
+      },
+      "gidf": {
+        "sample_count": 200,
+        "hit_rate_at_10": 0.815,
+        "mrr": 0.507294,
+        "mttc": 4.795,
+        "efficiency": 0.6205,
+        "technical_score": 0.683788
+      },
+      "full": {
+        "sample_count": 200,
+        "hit_rate_at_10": 0.8,
+        "mrr": 0.522875,
+        "mttc": 4.88,
+        "efficiency": 0.612,
+        "technical_score": 0.679263
+      },
+      "cov+gidf": {
+        "sample_count": 200,
+        "hit_rate_at_10": 0.82,
+        "mrr": 0.512488,
+        "mttc": 4.75,
+        "efficiency": 0.625,
+        "technical_score": 0.688746
+      },
+      "full+frac": {
+        "sample_count": 200,
+        "hit_rate_at_10": 0.85,
+        "mrr": 0.511262,
+        "mttc": 4.485,
+        "efficiency": 0.6515,
+        "technical_score": 0.708679
+      },
+      "phrase_n2": {
+        "sample_count": 200,
+        "hit_rate_at_10": 0.9,
+        "mrr": 0.547319,
+        "mttc": 4.005,
+        "efficiency": 0.6995,
+        "technical_score": 0.754096
+      },
+      "phrase_n3": {
+        "sample_count": 200,
+        "hit_rate_at_10": 0.95,
+        "mrr": 0.591353,
+        "mttc": 3.69,
+        "efficiency": 0.731,
+        "technical_score": 0.798606
+      },
+      "phrase_n4": {
+        "sample_count": 200,
+        "hit_rate_at_10": 0.96,
+        "mrr": 0.617048,
+        "mttc": 3.575,
+        "efficiency": 0.7425,
+        "technical_score": 0.813614
+      },
+      "phrase_n8": {
+        "sample_count": 200,
+        "hit_rate_at_10": 0.96,
+        "mrr": 0.633387,
+        "mttc": 3.545,
+        "efficiency": 0.7455,
+        "technical_score": 0.819116
+      }
+    },
+    "pool_60": {
+      "bm25": {
+        "sample_count": 200,
+        "hit_rate_at_10": 0.805,
+        "mrr": 0.521002,
+        "mttc": 4.84,
+        "efficiency": 0.616,
+        "technical_score": 0.682001
+      },
+      "phrase_n2": {
+        "sample_count": 200,
+        "hit_rate_at_10": 0.89,
+        "mrr": 0.547869,
+        "mttc": 4.055,
+        "efficiency": 0.6945,
+        "technical_score": 0.748261
+      },
+      "phrase_n3": {
+        "sample_count": 200,
+        "hit_rate_at_10": 0.93,
+        "mrr": 0.59125,
+        "mttc": 3.805,
+        "efficiency": 0.7195,
+        "technical_score": 0.786275
+      },
+      "phrase_n4": {
+        "sample_count": 200,
+        "hit_rate_at_10": 0.935,
+        "mrr": 0.612403,
+        "mttc": 3.74,
+        "efficiency": 0.726,
+        "technical_score": 0.796421
+      },
+      "phrase_n8": {
+        "sample_count": 200,
+        "hit_rate_at_10": 0.935,
+        "mrr": 0.628575,
+        "mttc": 3.71,
+        "efficiency": 0.729,
+        "technical_score": 0.801873
+      }
+    }
+  }
+}
