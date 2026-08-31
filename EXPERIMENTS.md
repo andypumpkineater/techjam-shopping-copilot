@@ -1208,18 +1208,17 @@ once; no repeated public-set tuning of pool size; no alternate pool sizes
 tested (15/30/40/50 etc.); reverted per the pre-registered fallback rule.
 Further post-v1.1 experiments still require explicit human approval.
 
-## E008 — Candidate-Local IDF-aware Reranking (PREREGISTERED)
+## E008 — Candidate-Local IDF-aware Reranking
 
-Status: PREREGISTERED / NOT YET IMPLEMENTED
+Status: REVERT
 
 Classification: human-approved post-Architecture-v1.1 experiment (see
 PROJECT_STATE.md "Human Decision — Freeze Lifted (2026-08-31)"). This does
-not reopen or rewrite E007 history: E007 remains REVERTED, and E008 does
+not reopen or rewrite E007 history: E007 remains REVERTED, and E008 did
 NOT retry candidate-pool expansion.
 
 Baseline: E006 — Adaptive Catalog-Side Clarification, plus the accepted M6
-`_product_terms()` memoization. Current best remains E006 + M6 memoization
-until E008 is evaluated and an explicit KEEP decision is recorded.
+`_product_terms()` memoization.
 
 Hypothesis: E007 showed that the current binary/unweighted E004 coverage
 reranker cannot safely exploit a noisier, deeper Top20 lexical pool. The
@@ -1247,7 +1246,7 @@ field weighting, title boosting, dense retrieval, embeddings, LLM
 reranking, semantic parsing, override handling, personalization, router, or
 new clarification logic is added.
 
-Preregistered IDF policy (Python stdlib only, candidate-local, one fixed
+Tested IDF policy (Python stdlib only, candidate-local, one fixed
 formula, not tuned after evaluation):
 
 For the current E006 candidate ids only (no global 50k-product IDF index,
@@ -1260,7 +1259,7 @@ df(t) = number of current candidates whose _product_terms(candidate)
 idf(t) = ln((N + 1) / (df(t) + 1)) + 1
 ```
 
-Preregistered rarity score (per-evidence-unit, not per-term, to avoid
+Tested rarity score (per-evidence-unit, not per-term, to avoid
 rewarding a verbose product for matching many words from one message):
 
 For each evidence unit U (same E004 units) and candidate product P, with
@@ -1278,7 +1277,7 @@ rarity_score(P) = sum of per-unit rarity contributions across all
 `coverage(P)` (E004's existing binary count of evidence units with
 non-empty overlap) is unchanged and remains the PRIMARY ranking signal.
 
-Preregistered sort key (strictly lexicographic, coverage dominant):
+Tested sort key (strictly lexicographic, coverage dominant):
 
 ```
 1. coverage(P) descending
@@ -1314,7 +1313,32 @@ Evaluation rule (preregistered before evaluation, one official run only):
 python -m evaluator.local_evaluator
 ```
 
-E006 + M6 baseline to compare against:
+No IDF formula tuning after seeing results — no alternate global IDF,
+different smoothing, weighted coverage/rarity combination, or field
+weighting was tried inside this experiment.
+
+Discipline followed: preregistered before implementation; implemented per
+the preregistration; exactly one official evaluator run performed; no
+formula tuning after seeing results; reverted per the pre-registered
+fallback rule.
+
+Validation:
+
+All smoke tests passed.
+
+A direct E006-vs-E008 isolation replay over:
+- 40 public sessions
+- 400 turns
+
+showed:
+- 0 recommendation-set mismatches
+- 0 ask_attribute mismatches
+- 379 / 400 turns with changed internal recommendation order
+
+Therefore the mechanism actively changed ranking while preserving the
+intended candidate-set / dialogue invariants.
+
+### E006 + M6 baseline
 
 HitRate@10:       0.835
 MRR:              0.522579
@@ -1322,20 +1346,88 @@ MTTC:             4.515
 Efficiency:       0.6485
 TechnicalScore:   0.703974
 
-buying:           HR@10 0.8625 / MRR 0.502108 / MTTC 3.900
-browsing:         HR@10 0.825  / MRR 0.479415 / MTTC 4.675
-intent_override:  HR@10 0.8    / MRR 0.658135 / MTTC 5.333333
-boundary:         HR@10 0.8    / MRR 0.625     / MTTC 5.700
+Runtime: 72.97s real
 
-Primary E008 mechanism metric: MRR. Final KEEP/REVERT decision is made on
-overall TechnicalScore. No IDF formula tuning after seeing results — no
-alternate global IDF, different smoothing, weighted coverage/rarity
-combination, or field weighting is to be tried inside this experiment.
+### E008 result
 
-Discipline: preregistered before implementation or evaluation; exactly one
-official evaluator run planned; if E008 does not KEEP, revert to E006 + M6
-unchanged; further post-v1.1 experiments beyond E008 still require explicit
-human approval.
+HitRate@10:       0.835
+MRR:              0.424498
+MTTC:             4.515
+Efficiency:       0.6485
+TechnicalScore:   0.674549
 
-Next: implement per this preregistration, run the one official evaluator
-pass, and record the KEEP/REVERT outcome here.
+Runtime: 73.52s real
+
+Delta vs E006:
+
+HitRate@10:       +0.000000
+MRR:              -0.098081
+MTTC:             +0.000
+Efficiency:       +0.0000
+TechnicalScore:   -0.029425
+Runtime:          +0.55s (no meaningful runtime impact)
+
+Scenario results:
+
+buying:
+HR@10 0.8625
+MRR 0.446567
+MTTC 3.900
+
+browsing:
+HR@10 0.825
+MRR 0.373428
+MTTC 4.675
+
+intent_override:
+HR@10 0.8
+MRR 0.457222
+MTTC 5.333333
+
+boundary:
+HR@10 0.8
+MRR 0.558333
+MTTC 5.700
+
+Scenario MRR deltas vs E006:
+
+buying:          -0.055541
+browsing:        -0.105987
+intent_override: -0.200913
+boundary:        -0.066667
+
+All four scenario HR@10 and MTTC values are bit-identical to E006.
+
+Decision: REVERT.
+
+Interpretation:
+
+The experiment rejects candidate-local lexical rarity as a secondary
+tie-break for the current E006 Top10 candidate set.
+
+The strong isolation invariants held:
+
+- candidate membership unchanged;
+- HitRate@10 unchanged;
+- MTTC unchanged;
+- Efficiency unchanged;
+- ask_attribute trajectory unchanged.
+
+Therefore the MRR regression is attributable to changed ranking order, not
+a retrieval or dialogue-side leak.
+
+The supported conclusion is narrow: within an already lexically retrieved
+~Top10 pool, local rarity is a poor proxy for target relevance and
+performs substantially worse than preserving the pre-existing lexical/BM25
+order among equal-coverage candidates.
+
+Do NOT conclude that:
+- all IDF is harmful;
+- global corpus IDF is harmful;
+- field-aware ranking is harmful;
+- semantic reranking is harmful.
+
+Those mechanisms were not tested.
+
+Next: current best remains E006 + M6 memoization, unchanged. Further
+post-v1.1 experiments beyond E008 still require explicit human approval.

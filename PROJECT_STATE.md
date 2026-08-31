@@ -103,33 +103,68 @@ Therefore current production/best code target remains E006 + M6
 memoization, and `starter/agent.py` has been restored to that state — the
 failed E007 change was discarded and this outcome documentation committed.
 
-## E008 — Preregistered (2026-08-31)
+## E008 Outcome (2026-08-31)
 
-New HUMAN decision on 2026-08-31: one further post-v1.1 experiment is
-authorized, E008 — Candidate-Local IDF-aware Reranking. Status:
-PREREGISTERED / NOT YET IMPLEMENTED. Full preregistration:
-EXPERIMENTS.md "E008 — Candidate-Local IDF-aware Reranking (PREREGISTERED)".
+Status: **REVERT** (human decision, 2026-08-31). Full record:
+EXPERIMENTS.md "E008 — Candidate-Local IDF-aware Reranking".
 
-This is a human-approved post-Architecture-v1.1 experiment extension, like
-E007 before it; Architecture v1.1 (`docs/M2_SYSTEM_DESIGN.md`) remains
-historical and unchanged, and still originally ends at E006. This does not
-rewrite E007 history: E007 remains REVERTED.
+E008 — Candidate-Local IDF-aware Reranking was a human-approved
+post-Architecture-v1.1 experiment extension, like E007 before it;
+Architecture v1.1 (`docs/M2_SYSTEM_DESIGN.md`) remains historical and
+unchanged, and still originally ends at E006. This does not rewrite E007
+history: E007 remains REVERTED.
 
-Reason: E007 showed that the current binary/unweighted E004 coverage
-reranker cannot safely exploit a noisier, deeper Top20 candidate pool. The
-narrower next hypothesis is that, with the ORIGINAL E006 candidate
-membership held exactly frozen, ranking ties can be improved by preferring
-evidence matches that are rarer / more discriminative among the current
-candidate set, using a candidate-local IDF over the exact E006 candidate
-ids only (no global catalog IDF index). E008 does NOT retry candidate-pool
-expansion and does NOT reintroduce E007's `POOL_MULTIPLIER`.
+Tested hypothesis: with the ORIGINAL E006 candidate membership held
+exactly frozen and E004 coverage kept as the PRIMARY ranking signal,
+ranking ties among equal-coverage candidates could be improved by
+preferring evidence matches that are rarer / more discriminative among
+the current candidate set, using a candidate-local IDF over the exact
+E006 candidate ids only (no global catalog IDF index). E008 did NOT retry
+candidate-pool expansion and did NOT reintroduce E007's `POOL_MULTIPLIER`.
 
-Current best remains E006 + M6 memoization (metrics above) until E008 is
-implemented, evaluated exactly once against the official evaluator, and an
-explicit KEEP or REVERT decision is recorded. Discipline: preregistered
-before implementation; one official evaluator run; if E008 does not KEEP,
-revert to E006 + M6; further post-v1.1 experiments beyond E008 still
-require explicit human approval.
+E006 + M6 baseline (unchanged, current best):
+HitRate@10 0.835, MRR 0.522579, MTTC 4.515, Efficiency 0.6485,
+TechnicalScore 0.703974. Runtime 72.97s real.
+
+E008 result:
+HitRate@10 0.835, MRR 0.424498, MTTC 4.515, Efficiency 0.6485,
+TechnicalScore 0.674549. Runtime 73.52s real.
+
+Delta vs E006: HitRate@10 +0.000000, MRR -0.098081, MTTC +0.000
+(unchanged), Efficiency +0.0000 (unchanged), TechnicalScore -0.029425,
+runtime +0.55s (no meaningful runtime impact).
+
+Scenario MRR deltas vs E006: buying -0.055541, browsing -0.105987,
+intent_override -0.200913 (largest), boundary -0.066667. All four
+scenario HitRate@10 and MTTC values remained bit-identical to E006.
+
+Key finding: the implementation correctly isolated the preregistered
+mechanism — candidate membership frozen, E004 coverage remained primary,
+candidate-local IDF rarity only broke equal-coverage ties. Validation: all
+smoke tests passed, and a direct E006-vs-E008 isolation replay over 40
+public sessions / 400 turns showed 0 recommendation-set mismatches, 0
+ask_attribute mismatches, and 379/400 turns with changed internal order
+(confirming the mechanism actively engaged). Despite this clean isolation,
+candidate-local IDF tie-breaking materially reduced MRR in every scenario
+bucket while preserving HitRate@10, MTTC, Efficiency, and the
+ask_attribute trajectory exactly. The supported conclusion is narrow:
+within an already lexically retrieved ~Top10 pool, local rarity is a poor
+proxy for target relevance and performs substantially worse than
+preserving the pre-existing lexical/BM25 order among equal-coverage
+candidates. Do not conclude that all IDF, global corpus IDF, field-aware
+ranking, or semantic reranking is harmful — none of those were tested.
+
+Thus the current best ranking behavior remains E004 coverage reranking
+with stable preservation of the incoming lexical/BM25 order on coverage
+ties (i.e. no secondary tiebreak signal beyond input order). Therefore
+current production/best code target remains E006 + M6 memoization
+unchanged; `starter/agent.py` has not yet been restored to that state
+after E008 (pending; the E008 code is still present awaiting revert — see
+note above regarding this same pattern after E007).
+
+E007 remains REVERTED. E008 is now REVERTED. Do not yet declare algorithm
+experimentation frozen unless explicitly directed by the human; further
+post-v1.1 experiments still require explicit human approval.
 
 # Environment
 - macOS
@@ -339,8 +374,10 @@ post-v1.1 experiment (E007 — Candidate Pool Expansion) — see "Human
 Decision — Freeze Lifted (2026-08-31)" above. E007 has been evaluated and
 REVERTED (see "E007 Outcome" above); current best algorithm remains E006.
 `starter/agent.py` has been restored to the pre-E007 (E006 + M6) code.
-M7 — Submission remains deferred; see "E008 — Preregistered (2026-08-31)"
-above for the current not-yet-authorized-for-M7 reason.
+M7 — Submission remains deferred; see "E008 Outcome (2026-08-31)" above:
+E008 has also been evaluated and REVERTED, and `starter/agent.py` still
+awaits restoration to E006 + M6 after E008, a separate not-yet-authorized
+step.
 
 # Known Baseline Weaknesses
 
@@ -444,11 +481,15 @@ REVERTED (see "E007 Outcome" above); `starter/agent.py` has been restored
 to the pre-E007 (E006 + M6) code.
 
 A second post-v1.1 experiment, E008 — Candidate-Local IDF-aware Reranking,
-was preregistered by human decision on 2026-08-31 (see "E008 —
-Preregistered (2026-08-31)" above and EXPERIMENTS.md for the full record).
-Status: PREREGISTERED / NOT YET IMPLEMENTED. `starter/agent.py` has not
-been modified for E008. M7 remains deferred pending E008's implementation,
-evaluation, and KEEP/REVERT decision, or the human directing otherwise.
+was preregistered, implemented, evaluated once, and REVERTED by human
+decision on 2026-08-31 (see "E008 Outcome (2026-08-31)" above and
+EXPERIMENTS.md for the full record); current best remains E006 + M6
+memoization, and `starter/agent.py` has not yet been restored to that code
+(pending; the E008 code is still present awaiting revert). M7 remains
+deferred pending that restoration, or the human directing otherwise.
+Algorithm development is not to be marked frozen again unless the human
+makes that decision, and further post-v1.1 experiments still require
+explicit human approval.
 
 # Open Questions
 
