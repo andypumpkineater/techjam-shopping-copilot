@@ -227,6 +227,9 @@ class Agent:
         self.connection = sqlite3.connect(":memory:")
         self._sessions: dict[str, list[str]] = {}
         self._asked_attributes: dict[str, set[str]] = {}
+        # E014 — idle-turn slate rotation state, per session.
+        self._slate_offset: dict[str, int] = {}
+        self._evidence_len: dict[str, int] = {}
         self._level_vocab: dict[str, list[tuple[frozenset[str], str]]] = {}
         # M6 — catalog-static memoization cache for _product_terms(). The
         # catalog/index are built once above and never mutated afterward, so
@@ -539,10 +542,36 @@ class Agent:
             asked.add(chosen)
         return chosen
 
+    def _rotated_slate(
+        self, session_id: str, ranked: list[str], turn: int, top_k: int
+    ) -> list[str]:
+        # E014 — idle-turn slate rotation. If this turn admitted no new evidence,
+        # the accumulated text, the BM25 expression, the pool and the reranked
+        # order are all identical to the previous turn's, so ranked[:top_k] is
+        # bit-for-bit the page the evaluator has already judged not to contain
+        # the target. Returning it again hits with probability exactly 0, so
+        # return the next unshown window of the same ranked pool instead. Any
+        # evidence change resets the window to the head. The window step is the
+        # contract top_k itself, so this introduces no new hyperparameter; the
+        # pool is the one already computed for this turn, so it introduces no
+        # extra retrieval or ranking work.
+        evidence_len = len(self._sessions[session_id])
+        if turn > 1 and evidence_len == self._evidence_len[session_id]:
+            self._slate_offset[session_id] = min(
+                self._slate_offset[session_id] + top_k, max(0, len(ranked) - top_k)
+            )
+        else:
+            self._slate_offset[session_id] = 0
+        self._evidence_len[session_id] = evidence_len
+        offset = self._slate_offset[session_id]
+        return ranked[offset : offset + top_k]
+
     def reset(self, session_id: str, user_profile: dict) -> None:
         # The profile is anonymized and may be used for personalization.
         self._sessions[session_id] = []
         self._asked_attributes[session_id] = set()
+        self._slate_offset[session_id] = 0
+        self._evidence_len[session_id] = 0
 
     def respond(
         self,
@@ -561,6 +590,10 @@ class Agent:
         if not expression:
             recommendations: list[dict] = []
             ids: list[str] = []
+            # E014 — no pool this turn, so there is nothing to rotate; the
+            # evidence length is still recorded so the next turn compares
+            # against the right value.
+            self._evidence_len[session_id] = len(self._sessions[session_id])
         else:
             detected = self._detect_category(frozenset(unique_terms))
             if detected is None:
@@ -608,8 +641,19 @@ class Agent:
             # strong candidate below pool rank 10 can be promoted into the
             # returned ten. Under E010 the cut happened first, which is why
             # reranking could only ever move MRR.
-            ids = self._coverage_rerank(session_id, ids)[:top_k]
-            recommendations = [{"parent_asin": parent_asin} for parent_asin in ids]
+            ranked = self._coverage_rerank(session_id, ids)
+            ids = ranked[:top_k]
+            recommendations = [
+                {"parent_asin": parent_asin}
+                for parent_asin in self._rotated_slate(session_id, ranked, turn, top_k)
+            ]
+        # E014 — the selector receives the PRE-rotation head, never the rotated
+        # window. This is the sole condition under which the dialogue stream
+        # stays turn-for-turn identical to E013: the simulator reads only
+        # ask_attribute, so if the question sequence is unchanged the disclosure
+        # sequence is unchanged, and rotation cannot feed back into the agent's
+        # own input. Passing the rotated window here would reopen that loop and
+        # destroy the property that makes E014's offline prediction exact.
         ask_attribute = self._select_attribute(session_id, ids, turn)
         return {
             "message": "Here are the closest matches I found.",

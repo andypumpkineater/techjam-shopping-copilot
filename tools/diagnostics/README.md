@@ -108,7 +108,8 @@ side must be reproducible. Two rules:
    | `E010_SESSIONS.json` | E010 (TS 0.743145) |
    | `E011_SESSIONS.json` | E011 (TS 0.796939) |
    | `E012_SESSIONS.json` | E012 (TS 0.818056) |
-   | `E013_SESSIONS.json` | E013, current best (TS 0.839920) |
+   | `E013_SESSIONS.json` | E013 (TS 0.839920) |
+   | `E014_SESSIONS.json` | E014, current best (TS 0.861737) |
 
    These are the evaluator's own output, committed verbatim and never
    hand-edited. Each holds the 200-entry `sessions` array D-5 needs.

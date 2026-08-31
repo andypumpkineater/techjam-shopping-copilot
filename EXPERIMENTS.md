@@ -3990,6 +3990,210 @@ stated here rather than after the fact.
    KEEP/REVERT.
 6. Report MRR and MTTC **separately**, then check the §6 conditions one by one.
 
-### Result
+### E014 result (official evaluator, one run)
 
-_(to be filled in after the single official run)_
+```
+python3 -m evaluator.local_evaluator --output results_e014.json
+```
+
+```
+HitRate@10       0.990
+MRR              0.649123
+MTTC             2.400
+Efficiency       0.860
+TechnicalScore   0.861737
+```
+
+Runtime: 415.83s real (413.72s user), vs E013's 411.19s. Rotation adds a list
+slice and no retrieval or ranking work.
+
+Scenario metrics:
+- buying: HitRate@10 0.9875, MRR 0.598135, MTTC 1.9375
+- browsing: HitRate@10 1.0, MRR 0.637574, MTTC 2.2125
+- intent_override: HitRate@10 0.966667, MRR 0.820833, MTTC 3.933333
+- boundary: HitRate@10 1.0, MRR 0.634286, MTTC 3.0
+
+### D-5 paired session delta (n=200), vs `docs/diagnostics/E013_SESSIONS.json`
+
+```
+python3 -m tools.diagnostics.d5_paired_delta docs/diagnostics/E013_SESSIONS.json results_e014.json --show-sessions
+```
+
+Transition matrix:
+- miss->hit: 6
+- **hit->miss: 0**
+- hit->hit rank improved: 0
+- hit->hit rank regressed: 1
+- hit->hit unchanged: 191
+- miss->miss: 2
+
+aggregate reciprocal-rank delta: +1.611111 (MRR delta +0.008056)
+aggregate first-hit-turn delta: -44.0 (MTTC delta -0.220)
+
+Scenario breakdown:
+- boundary n=10: unchanged 9, rank regressed 1
+- browsing n=80: unchanged 78, miss->hit 2
+- buying n=80: unchanged 76, miss->hit 3, miss->miss 1
+- intent_override n=30: unchanged 28, miss->hit 1, miss->miss 1
+
+The seven sessions that moved:
+
+| Session | Scenario | E013 | E014 |
+|---|---|---|---|
+| public_0083 | buying | MISS | turn 4, rank 9 |
+| public_0087 | browsing | MISS | turn 5, rank 6 |
+| public_0097 | buying | MISS | turn 4, rank 1 |
+| public_0162 | browsing | MISS | turn 4, rank 6 |
+| public_0174 | buying | MISS | turn 4, rank 2 |
+| public_0198 | intent_override | MISS | turn 5, rank 3 |
+| **public_0131** | boundary | turn 3, rank 1 | **turn 2, rank 3** |
+
+Two further sessions hit *earlier at the same rank* — public_0002
+(turn 6 -> 4, rank 8) and public_0050 (turn 3 -> 2, rank 7). D-5 classes both as
+"unchanged" because it keys on rank; they are pure MTTC gain at zero MRR cost.
+
+**Four of the six recoveries are exactly the four sessions E013 broke.** E013's
+hit->miss set was public_0097, public_0162, public_0174 and public_0198, and its
+record left them explicitly undiagnosed. They were idle-turn casualties: E013
+compressed clarification into two turns, so those sessions spent the rest of the
+session re-showing a page already judged to miss. E014 returns all four, at
+better ranks than E012 held them at (E012: 10, 10, 8, 5; E014: 1, 6, 2, 3),
+without touching anything E013 did.
+
+**hit->miss = 0**, as §4 and audit §C property 2 proved it must be. The dominance
+argument held on the scored path.
+
+### The two channels, reported separately (Procedure step 6)
+
+| Channel | E013 | E014 | Delta |
+|---|---:|---:|---:|
+| **MRR** | 0.641067 | 0.649123 | **+0.008056** |
+| **MTTC** | 2.620 | 2.400 | **-0.220** |
+| HitRate@10 | 0.960 | 0.990 | +0.030 |
+| Efficiency | 0.838 | 0.860 | +0.022 |
+| TechnicalScore | 0.839920 | 0.861737 | **+0.021817** |
+
+**MRR rose**, and the movement is fully accounted for: +1.611111 aggregate
+reciprocal rank, of which the six recoveries contribute +2.277778 and
+public_0131 alone returns -0.666667. Rank-1 sessions are unchanged at 104. This
+is not a reshuffle — it is six additions and one demotion.
+
+**MTTC fell 0.220** (-44.0 aggregate first-hit turns). First-hit-turn
+distribution:
+
+| first_hit_turn | 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---:|---:|---:|---:|---:|---:|
+| E013 | 34 | 94 | 45 | 17 | 1 | 1 |
+| E014 | 34 | 96 | 43 | 22 | 3 | 0 |
+
+The mass added at turns 4-5 is the six recoveries arriving; the turn-6 tail is
+gone. The §3 warning signal (HR@10 failing to rise, meaning rotation never
+fired) did not fire.
+
+### Preregistered decision rule, checked condition by condition
+
+| Condition | Threshold | Measured | Met? |
+|---|---|---|---|
+| (a) TechnicalScore gain | >= 0.010 (TS >= 0.849920) | TS 0.861737, gain **+0.021817** | **yes** |
+| (b) Overall MRR | >= 0.641067 | **0.649123** (+0.008056) | **yes** |
+| (c) No scenario bucket HR@10 falls | none below E013 | browsing 0.975 -> 1.000, buying 0.950 -> 0.9875, intent_override 0.933333 -> 0.966667, boundary 1.0 -> 1.0 | **yes** — all four rose or held |
+
+### Offline prediction vs measured result
+
+The preregistration predicted TS 0.861737, HR@10 0.990, MRR 0.649123,
+MTTC 2.400. Measured: TS **0.861737**, HR@10 **0.990**, MRR **0.649123**,
+MTTC **2.400**. Exact to all six decimals, and exact at bucket level as well —
+including boundary MRR 0.700952 -> 0.634286 and the single predicted casualty
+being public_0131 at turn 2 rank 3.
+
+That discharges §3's exactness claim and audit §C property 1. With
+`_select_attribute()` fed the pre-rotation head, the agent's output has no path
+back into the simulator's input, so the replay was an *exact* predictor rather
+than an approximate one. E013 diverged by +0.0007 precisely because that loop was
+open there; E014 closes it by construction. This is a methodological result about
+the replay core, **not** independent evidence about the private set.
+
+### Decision: KEEP
+
+Human decision, 2026-09-01. All three preregistered conditions met:
+
+- (a) TechnicalScore **0.861737**, a gain of **+0.021817** over 0.839920, above
+  the preregistered >= 0.010 bar.
+- (b) Overall MRR **0.649123**, above the E013 value of 0.641067 — the condition
+  that replaced "no hit->miss cluster", and the only channel that could have
+  failed.
+- (c) No scenario bucket's HitRate@10 fell; all four rose or held.
+
+New best system: **E014 — Idle-turn slate rotation**, running on top of E013 +
+E012 + E011 + E010 + E006 + M6 + E004 + E003 + E002 + E001. Per-session
+snapshot: `docs/diagnostics/E014_SESSIONS.json`.
+
+**Algorithm development is now frozen** per the human decision of 2026-09-01.
+
+### Interpretation
+
+**The idle-turn hypothesis is confirmed, and confirmed by dominance rather than
+by statistics.** The argument was never "this rule ranks better" — it was "a page
+the evaluator has already judged cannot contain the target, so re-showing it has
+hit probability exactly 0." The measured 0 hit->miss over 200 sessions and the
+four buckets that all rose or held are what that argument predicts, and they are
+not a favourable draw: no other outcome was reachable.
+
+**E014 is the repair for E013's own side effect.** E013 bought its +0.0219 by
+compressing clarification into two turns, which created seven idle turns per
+session and cost four previously-held sessions. Those four are exactly four of
+E014's six recoveries. The two experiments are complementary in a way neither was
+designed for: E013 created the idle window, E012 created the pool depth for a
+next page to exist in, and E014 spends both. The audit's claim that this signal
+could not have worked before E012 and E013 is borne out — before them the window
+was shallow and late.
+
+**MRR rose without touching the ranking rule.** For the second experiment running,
+MRR moved up rather than being spent to buy HitRate@10, and again without
+altering the proximity formula, the sort key, the pool or any retrieval signal.
+The remaining tie-collapse headroom identified in the post-E011 audit is
+untouched and remains unreachable with current lexical signals.
+
+**Not established:**
+
+- **That the gain generalizes in size.** It is concentrated in 6 sessions (3% of
+  the public set). The mechanism applies uniformly to every missing session and
+  is provably harmless to the other 97%, but the measured magnitude rests on few
+  sessions and this was stated in the preregistration, not after the fact.
+- **That private sessions idle at all.** If private intent cards carry more
+  constraints and disclosure keeps going, rotation never fires and the benefit is
+  0 — as is the cost. Nothing here measures that. The §5 card-size stress test,
+  which is the check that would probe it, was **not run**: the execution order
+  authorized steps 1-6 and the §5 checks are not gates on the decision rule.
+- **That the boundary MRR cost is bounded.** boundary is 5% of the public set and
+  paid 1 session of 10 (bucket MRR 0.700952 -> 0.634286). A private set with a
+  larger boundary share scales that cost proportionally. Per §6 this must **not**
+  be patched with a gating rule — that would be tuning to one session in an n=10
+  bucket.
+- Private-set generalization generally. n=200, no variance estimate.
+
+**On the exact prediction:** it confirms the change is deterministic and free of
+agent-to-simulator feedback, which is exactly what §2's `head` requirement was
+for. It says nothing about whether the public set resembles the private one. An
+exact prediction of the wrong distribution is still the wrong distribution.
+
+### Next question
+
+**None. Algorithm development is frozen after E014 by human decision
+(2026-09-01).** Every remaining direction was closed by that same decision and
+must not be reopened as a remedy or a follow-up: turn-1 output width and any
+"return fewer to buy a better rank" metric shaping (offline +0.0149, sealed); a
+third `other` turn or always asking `other` (offline +0.0003, not run); the 70/30
+composition and pool depth beyond 100 (gain driven by 2 public sessions); any
+tie-break sort key, `N_MAX`, `_CLAUSE_SPLIT_RE`, or embedding/LLM/API signal.
+Variants of E014 itself — rotating only after two consecutive idle turns, a
+different window step, or enabling it per-bucket — are closed by §6.
+
+The two non-experimental obligations carried over from E013 remain the only open
+work, and are independent of any experiment:
+
+1. Write the exact-substring dependence of `_proximity_score()` into the final
+   report's limitations, and revise `docs/M2_SYSTEM_DESIGN.md`'s documented
+   overfitting risks so the two documents stop contradicting each other.
+2. Present the `other` half as the product insight it is, disclosing its
+   dependence on `customer_reply()` semantics in the same place.

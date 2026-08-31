@@ -7,27 +7,43 @@ true when written and is superseded by this one.
 
 ## Position
 
-**Updated 2026-09-01 — see "E013 Outcome (2026-09-01)" below for the full
-record; this Position block is kept current, not historical.**
+**Updated 2026-09-01 — see the E014 record in `EXPERIMENTS.md` for the full
+account; this Position block is kept current, not historical. The E013 Position
+text it replaced is preserved in the "E013 Outcome (2026-09-01)" section below.**
 
-- **Final current algorithm: E013** — Resolution/Clarification Coupling
-  (clause-level evidence units + front-loaded `other`), running on top of
-  E012 + E011 + E010 + E006 + M6 + E004 + E003 + E002 + E001.
-- **E013 status: KEEP** (human decision, 2026-09-01).
-- **Official TechnicalScore: 0.839920** — HitRate@10 0.960, MRR 0.641067,
-  MTTC 2.620, Efficiency 0.838, over the 200 public sessions.
-- Evaluator run at commit (post-`954f491`, pre-E013-commit): output
-  `results_e013.json`, wall clock 411.19 s real. Per-session snapshot:
-  `docs/diagnostics/E013_SESSIONS.json`.
+- **Final current algorithm: E014** — Idle-turn slate rotation, running on top of
+  E013 + E012 + E011 + E010 + E006 + M6 + E004 + E003 + E002 + E001.
+- **E014 status: KEEP** (human decision, 2026-09-01).
+- **Official TechnicalScore: 0.861737** — HitRate@10 0.990, MRR 0.649123,
+  MTTC 2.400, Efficiency 0.860, over the 200 public sessions.
+- Evaluator run at commit (post-`ca8c4d2`, pre-E014-commit): output
+  `results_e014.json`, wall clock 415.83 s real. Per-session snapshot:
+  `docs/diagnostics/E014_SESSIONS.json`.
+- **ALGORITHM DEVELOPMENT IS FROZEN after E014**, by human decision 2026-09-01.
+  This freeze covers every direction closed in that decision and must not be
+  reopened as a remedy or follow-up: turn-1 output width and any "return fewer
+  to buy a better rank" metric shaping (offline +0.0149, sealed); more or always
+  `other` turns (offline +0.0003, not run); the 70/30 composition and pool depth
+  beyond 100; any tie-break sort key, `N_MAX`, `_CLAUSE_SPLIT_RE`, or
+  embedding/LLM/API signal. Variants of E014 itself — rotating only after two
+  consecutive idle turns, a different window step, per-bucket enablement — are
+  closed by the E014 preregistration §6.
+- E013 (TechnicalScore 0.839920) is prior best, unchanged in its own record
+  below, and is the full-rollback point for E014.
+- E014 carries the project's **lowest** declared overfitting risk: zero new
+  hyperparameters (the window step is the contract `top_k`), zero wording
+  dependencies, HitRate@10 and MTTC provably monotone, and the dialogue stream
+  turn-for-turn identical to E013. It uses only three properties of the task and
+  protocol: the protocol grants 10 turns, re-showing an already-judged page
+  cannot produce a new hit, and clarification eventually saturates.
+- E014's honest caveat, recorded before evaluation: the gain is concentrated in 6
+  sessions (3%), and if private sessions never idle the benefit is 0 — as is the
+  cost.
 - E005, E007, E008 remain REVERTED. D012 remains CANCELLED with no result.
-- E012 (TechnicalScore 0.818056) is prior best, unchanged in its own record
-  below, and is the full-rollback point for E013 — **both** coupled halves plus
-  the original test, never one half.
-- E013 is the project's highest-coupling change to date (audit overfitting risk
-  "medium", vs E012's "lowest"). Two dependencies on simulator semantics are
-  disclosed in the EXPERIMENTS.md record and must appear in the final report:
-  the clause delimiter `;` coincides with `customer_reply()`'s own join
-  character, and `other` uses that function's wildcard branch.
+- E013's two disclosed dependencies on simulator semantics **still stand and must
+  appear in the final report**: the clause delimiter `;` coincides with
+  `customer_reply()`'s own join character, and `other` uses that function's
+  wildcard branch. E014 adds no new dependency of this kind.
 
 ## Algorithm freeze for submission preparation (historical — lifted 2026-09-01)
 
