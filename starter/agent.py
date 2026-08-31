@@ -156,6 +156,12 @@ class Agent:
         self._sessions: dict[str, list[str]] = {}
         self._asked_attributes: dict[str, set[str]] = {}
         self._level_vocab: dict[str, list[tuple[frozenset[str], str]]] = {}
+        # M6 — catalog-static memoization cache for _product_terms(). The
+        # catalog/index are built once above and never mutated afterward, so
+        # this cache is a pure memoization of an already-pure function; it
+        # lives for the Agent instance's lifetime and is intentionally never
+        # cleared by reset(), which only touches per-session state.
+        self._product_terms_cache: dict[str, frozenset[str]] = {}
         self._build_index()
 
     def _dominant_root(self) -> str | None:
@@ -312,14 +318,19 @@ class Agent:
         return [str(row[0]) for row in rows]
 
     def _product_terms(self, parent_asin: str) -> frozenset[str]:
+        if parent_asin in self._product_terms_cache:
+            return self._product_terms_cache[parent_asin]
         row = self.connection.execute(
             "SELECT title, categories, features, details, store, description "
             "FROM products WHERE parent_asin = ?",
             (parent_asin,),
         ).fetchone()
         if row is None:
-            return frozenset()
-        return frozenset(_terms(" ".join(str(value) for value in row)))
+            result = frozenset()
+        else:
+            result = frozenset(_terms(" ".join(str(value) for value in row)))
+        self._product_terms_cache[parent_asin] = result
+        return result
 
     def _coverage_rerank(self, session_id: str, ids: list[str]) -> list[str]:
         # E004 — reorder the exact E003 candidate set by how many admitted

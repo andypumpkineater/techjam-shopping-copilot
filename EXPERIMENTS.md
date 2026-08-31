@@ -865,3 +865,205 @@ Next:
 M6 — Ablation / Robustness. No E007 algorithm experiment is planned;
 algorithm capability development freezes after E006 per the human decision
 recorded in PROJECT_STATE.md.
+
+## M6 — Robustness, Reproducibility, and Performance
+
+This is NOT E007. M6 added no new algorithm capability: no retrieval,
+ranking, clarification, evidence, or override change was made. Current best
+algorithm remains E006.
+
+### Frozen algorithm baseline
+
+E006 — Adaptive Catalog-Side Clarification
+
+Canonical metrics:
+
+HitRate@10:       0.835
+MRR:              0.522579
+MTTC:             4.515
+Efficiency:       0.6485
+TechnicalScore:   0.703974
+
+Scenarios:
+
+buying:
+HR@10 0.8625
+MRR 0.502108
+MTTC 3.900
+
+browsing:
+HR@10 0.825
+MRR 0.479415
+MTTC 4.675
+
+intent_override:
+HR@10 0.8
+MRR 0.658135
+MTTC 5.333333
+
+boundary:
+HR@10 0.8
+MRR 0.625
+MTTC 5.700
+
+### Robustness verification
+
+PASS for:
+
+- deterministic outputs across fresh Agent instances;
+- interleaved session isolation;
+- reset isolation;
+- recommendation validity and uniqueness;
+- clarification exhaustion;
+- 10-turn stability;
+- no observed exception in tested/evaluator paths.
+
+Known edge case:
+
+An empty or punctuation-only initial user message yields zero
+recommendations because no lexical expression is produced.
+
+This remains unfixed.
+
+Classified as a defensive robustness gap relative to the architecture's
+"Always ten" invariant, not an observed official-evaluator blocker.
+
+Also recorded:
+
+The architecture's internal Guard/degradation component is not fully
+implemented. The official evaluator provides its own exception boundary.
+No exception occurred in M6 tests or the canonical evaluator.
+
+No M6 capability change was made to address either issue.
+
+### Determinism caveat
+
+Empirical determinism passed in the current environment.
+
+Some SQLite ordering paths do not contain explicit deterministic
+secondary tie-breakers, so cross-SQLite-version ordering is not formally
+guaranteed for exact ties.
+
+No ordering semantics were changed in M6.
+
+### Reproducibility environment
+
+- Python 3.11.15
+- SQLite 3.53.4
+- catalog: 50,000 rows
+- unique parent_asin: 50,000
+- evaluator command:
+  `python3 -m evaluator.local_evaluator`
+
+Catalog prerequisite:
+
+`data/catalog.jsonl` is not committed and must be obtained from the
+official release according to data/README.md.
+
+Checksum wording:
+
+"The organizer checksum verified the downloaded compressed
+`catalog.jsonl.gz`. The current decompressed `data/catalog.jsonl` has a
+different expected hash because it is a different byte representation."
+
+No new cryptographic verification of the decompressed JSONL is claimed.
+
+Values, labeled by which file each belongs to:
+
+Organizer compressed artifact SHA-256 (catalog.jsonl.gz):
+07fd142631fd6b03e2b4d09988c3eb7d53720e9d57010c79db48eeaada50a8f8
+
+Current local decompressed JSONL SHA-256 (data/catalog.jsonl):
+da979b05a68af864cb0dcf9ee6a81c010c7e66a57978ad286c7a2e005fc69a67
+
+### Performance finding
+
+Before optimization:
+
+Official 200-session evaluator:
+313.42s real
+
+Identified hotspot:
+
+`_product_terms(parent_asin)` repeatedly executes the same catalog-static
+SQLite lookup and tokenization from both E004 reranking and E006
+clarification selection.
+
+### Accepted M6 optimization
+
+Implemented ONE pure per-Agent-instance memoization cache for
+`_product_terms(parent_asin)`.
+
+Cache semantics:
+
+- first request executes the exact original SQL/tokenization computation;
+- stores the exact frozenset result;
+- later calls for the same parent_asin return that result;
+- cache belongs to immutable catalog/Agent lifetime;
+- session reset does not clear it.
+
+No changes to:
+
+- SQL query
+- tokenizer
+- product text composition
+- retrieval
+- candidate membership
+- BM25
+- category logic
+- evidence
+- E004 reranking
+- E006 clarification
+- override handling
+
+Files Changed:
+- starter/agent.py
+
+### Behavioral equivalence
+
+Baseline E006 vs memoized version:
+
+- public sessions compared: 200 / 200
+- turns compared: 870
+- mismatch count: 0
+
+Compared exactly:
+
+- message
+- ask_attribute
+- ordered recommendations
+- usage
+
+### Post-optimization evaluator
+
+Official evaluator after memoization:
+
+72.97s real
+72.38s user
+exit code 0
+
+Performance:
+
+313.42s -> 72.97s
+
+- 240.45 seconds saved
+- 76.7% wall-clock reduction
+- 4.30x speedup
+
+All overall and scenario metrics remained bit-identical to E006.
+
+Decision:
+KEEP.
+
+Interpretation:
+
+This is an engineering optimization only, not a new algorithm experiment
+and not E007.
+
+M6 introduced no new recommendation or conversation capability.
+
+No further performance optimization is planned before submission.
+
+Next:
+M7 — Submission. Algorithm and performance behavior are now frozen; no
+E007 is planned.

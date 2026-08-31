@@ -2,8 +2,14 @@
 M3 — Retrieval (complete: E001–E003 KEEP). M4 — Ranking (complete: E004
 KEEP) per Architecture v1.1 roadmap. M5 — Conversation Intelligence
 complete: E005 (erase-all intent-override reset) tested and REVERTED; E006
-(adaptive catalog-side clarification) tested and KEPT. M5 capability
-development is now complete; see "Next Milestone" below.
+(adaptive catalog-side clarification) tested and KEPT. M6 — Robustness /
+Reproducibility / Performance is now COMPLETE: robustness verification
+PASS, reproducibility PASS in the current verified environment, and one
+semantics-preserving `_product_terms()` memoization optimization KEPT (see
+"M6 — Robustness, Reproducibility, and Performance" below and
+EXPERIMENTS.md for the full record). M6 introduced no new algorithm
+capability; current best algorithm remains E006. Next and only remaining
+milestone: M7 — Submission.
 
 # Environment
 - macOS
@@ -175,6 +181,42 @@ E001–E006 roadmap and milestone ownership boundaries (M3 Retrieval / M4
 Ranking / M5 Conversation Intelligence / M6 Ablation / M7 Submission) are
 in that document.
 
+# M6 — Robustness, Reproducibility, and Performance
+
+M6 — COMPLETE. Full record: EXPERIMENTS.md "M6 — Robustness,
+Reproducibility, and Performance".
+
+Robustness: PASS
+
+Reproducibility: PASS in current verified environment
+
+Performance optimization: KEEP
+
+Evaluator wall-clock: 313.42s -> 72.97s, 4.30x speedup
+
+Behavioral equivalence: 200 sessions / 870 turns / 0 mismatches
+
+Algorithm capability remains E006. The M6 cache does not constitute E007.
+
+The accepted optimization is a single pure per-Agent-instance memoization
+cache for `_product_terms(parent_asin)` (catalog-static, immutable for the
+Agent's lifetime, not cleared by session `reset()`), verified behaviorally
+identical to frozen E006 across all 200 public sessions before being kept.
+
+Known limitations:
+
+- semantic intent-override conflict resolution remains unresolved;
+- E006 lexical attribute vocabularies are heuristic;
+- empty/punctuation-only evidence may produce zero recommendations;
+- full internal Guard/degradation component remains unimplemented;
+- exact SQLite tie ordering is empirically deterministic in current
+  environment but not formally portable across all SQLite versions;
+- private-set generalization remains unknown.
+
+Next and ONLY remaining milestone: M7 — Submission.
+
+Algorithm and performance behavior are now frozen. No E007 is planned.
+
 # Known Baseline Weaknesses
 
 - intent override still lacks semantic conflicting-evidence supersession —
@@ -193,14 +235,14 @@ in that document.
 - naive coverage can over-credit generic/scaffold terms: a candidate can
   receive coverage credit through an attribute-name or conversational
   scaffold word without matching the actual disclosed value (E004)
-- E004/E006 `_product_terms()` SQL/tokenization work is uncached and causes
-  avoidable latency: `_coverage_rerank()` (E004) performs an uncached
-  per-candidate SQL lookup and tokenization per turn, and `_select_attribute()`
-  (E006) performs one additional uncached `_product_terms()` lookup per
-  candidate per turn (deduplicated only across E006's own five attributes
-  via a local per-call dict, not shared with E004's lookup); the official
-  evaluator run completed successfully but exceeded the 120-second
-  foreground window and finished in the background
+- Resolved at M6: `_product_terms()` was previously uncached, causing
+  `_coverage_rerank()` (E004) and `_select_attribute()` (E006) to each
+  perform their own per-candidate SQL lookup and tokenization per turn.
+  M6 added a pure per-Agent-instance memoization cache for
+  `_product_terms(parent_asin)`, verified behaviorally identical to E006
+  across all 200 public sessions (0 mismatches) and KEPT; official
+  evaluator wall-clock improved from 313.42s to 72.97s (4.30x). See
+  EXPERIMENTS.md "M6 — Robustness, Reproducibility, and Performance".
 - private-set generalization remains unknown
 
 # Safety Status
@@ -244,29 +286,26 @@ Best Metrics" above). E006 completes M5 capability development.
 M5 — Conversation Intelligence is complete: E005 (erase-all override reset)
 REVERTED, E006 (adaptive catalog-side clarification) KEPT. The
 architecture's supersede-conflicting default override policy remains an
-open, untested item — not solved, not scheduled for M6 — should a future
-human decision revisit intent override. E003's oldest-first 40-term cap,
-append-only evidence contamination, E004's generic-token/scaffold coverage
-limitations, and E006's uncached extra `_product_terms()` lookup remain
-open items, not solved here.
+open, untested item — not solved, not scheduled for M6 or M7 — should a
+future human decision revisit intent override. E003's oldest-first 40-term
+cap, append-only evidence contamination, and E004's generic-token/scaffold
+coverage limitations remain open items, not solved here. E006's extra
+`_product_terms()` lookup is no longer uncached — see "M6 — Robustness,
+Reproducibility, and Performance" above.
 
 **NO E007 algorithm experiment is planned. Algorithm capability development
 freezes after E006.**
 
-Per Architecture v1.1 (`docs/M2_SYSTEM_DESIGN.md` §C), the next milestone is
-**M6 — Ablation / Robustness**, which may test/verify:
-- determinism
-- session isolation
-- reset behavior
-- exceptions / malformed input handling
-- recommendation validity / uniqueness
-- latency / runtime
-- memory where practical
-- reproducibility
-- ablation consistency
-- optional paraphrase-perturbation stress testing if time allows
+M6 — Robustness / Reproducibility / Performance is now COMPLETE (see "M6 —
+Robustness, Reproducibility, and Performance" above and EXPERIMENTS.md for
+the full record): robustness verification PASS, reproducibility PASS in
+the current verified environment, and one semantics-preserving
+`_product_terms()` memoization optimization KEPT (313.42s -> 72.97s, 4.30x
+speedup, verified behaviorally identical to E006 across 200 sessions / 870
+turns, 0 mismatches). M6 added no new algorithm capability.
 
-M6 must NOT add new capability. M7 — Submission follows M6.
+Next and ONLY remaining milestone: **M7 — Submission**. Algorithm and
+performance behavior are now frozen; no E007 is planned.
 
 # Open Questions
 
