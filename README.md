@@ -11,32 +11,15 @@ LLM calls, no network on the scored path, and no third-party runtime
 dependencies.
 
 ```text
-HitRate@10  0.990   MRR  0.649123   MTTC  2.400   Efficiency  0.860
-TechnicalScore  0.861737     tokens 0     model cost $0.00     deps 0
-Official evaluator · 200 public sessions · unmodified evaluator/local_evaluator.py
+HitRate@10      0.990       MRR             0.649123
+MTTC            2.400       Efficiency      0.860
+TechnicalScore  0.861737    Tokens          0
+Model cost      $0.00       Deps            0
 ```
 
+Official evaluator · 200 public sessions · unmodified `evaluator/local_evaluator.py`
+
 ---
-
-## Highlights
-
-- **Retrieval, not generation.** No LLM, no embeddings, no network on the scored
-  path — the whole system is Python stdlib (`json`, `re`, `sqlite3`,
-  `collections`, `pathlib`) plus SQLite's built-in FTS5/BM25.
-- **Clarification is a retrieval instrument.** The agent asks wide first (an
-  open-ended question for the first two turns), then picks the single catalog
-  attribute its current Top 10 disagrees on most — not a scripted question tree.
-- **Advances the page instead of repeating it.** When a turn adds no new
-  constraint, the agent shows the next window of the ranked pool rather than
-  the same ten products again — the one change in this project with a
-  *provable*, not just measured, benefit.
-- **Retrieve wide → rerank → truncate.** 100 candidates are reranked by
-  longest-common-word-order before the Top 10 is cut, so a candidate at pool
-  rank 80 can still surface.
-- **Thirteen preregistered experiments, each decided on a single
-  official-evaluator run** — hypothesis and decision rule fixed before
-  evaluation, failures recorded at the same weight as successes
-  ([`EXPERIMENTS.md`](EXPERIMENTS.md)).
 
 ## Results
 
@@ -80,6 +63,26 @@ Network and external APIs *are* permitted in final evaluation
 offline was our design choice, not a rule. Full detail, including the
 determinism checks behind these numbers:
 [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md).
+
+## Highlights
+
+- **Retrieval, not generation.** No LLM, no embeddings, no network on the scored
+  path — the whole system is Python stdlib (`json`, `re`, `sqlite3`,
+  `collections`, `pathlib`) plus SQLite's built-in FTS5/BM25.
+- **Clarification is a retrieval instrument.** The agent asks wide first (an
+  open-ended question for the first two turns), then picks the single catalog
+  attribute its current Top 10 disagrees on most — not a scripted question tree.
+- **Advances the page instead of repeating it.** When a turn adds no new
+  constraint, the agent shows the next window of the ranked pool rather than
+  the same ten products again — the one change in this project with a
+  *provable*, not just measured, benefit.
+- **Retrieve wide → rerank → truncate.** 100 candidates are reranked by
+  longest-common-word-order before the Top 10 is cut, so a candidate at pool
+  rank 80 can still surface.
+- **Thirteen preregistered experiments, each decided on a single
+  official-evaluator run** — hypothesis and decision rule fixed before
+  evaluation, failures recorded at the same weight as successes
+  ([`EXPERIMENTS.md`](EXPERIMENTS.md)).
 
 ## How It Works
 
